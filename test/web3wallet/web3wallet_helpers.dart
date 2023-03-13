@@ -3,7 +3,7 @@ import 'dart:typed_data';
 
 import 'package:eth_sig_util/eth_sig_util.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:walletconnect_dart_v2/walletconnect_dart_v2.dart';
+import 'package:walletconnect_flutter_v2/walletconnect_flutter_v2.dart';
 
 import '../auth_api/utils/engine_constants.dart';
 import '../auth_api/utils/signature_constants.dart';
@@ -48,6 +48,7 @@ class Web3WalletHelpers {
     AuthResponse? authResponse;
 
     // Listen for a proposal via connect to avoid race conditions
+    Completer signCompleter = Completer();
     final signHandler = (SessionProposalEvent? args) async {
       // print('B Session Proposal');
 
@@ -63,15 +64,17 @@ class Web3WalletHelpers {
         namespaces: workingNamespaces,
       );
       sessionB = response.session;
-      if (sessionB == null) {
-        print('session b was set to null');
-      }
+      signCompleter.complete();
+      // if (sessionB == null) {
+      //   print('session b was set to null');
+      // }
     };
     b.onSessionProposal.subscribe(signHandler);
 
     // Listen for a auth request
+    Completer authCompleter = Completer();
     final authHandler = (AuthRequest? args) async {
-      // print('B Session Proposal');
+      // print('B Auth Request');
 
       expect(b.getPendingAuthRequests().length, 1);
 
@@ -93,6 +96,7 @@ class Web3WalletHelpers {
         iss: TEST_ISSUER_EIP191,
         signature: CacaoSignature(t: CacaoSignature.EIP191, s: sig),
       );
+      authCompleter.complete();
     };
     b.onAuthRequest.subscribe(authHandler);
 
@@ -106,6 +110,7 @@ class Web3WalletHelpers {
     Uri? uri = connectResponse.uri;
 
     // Send an auth request as well
+    // print('requesting auth');
     AuthRequestResponse authReqResponse = await a.requestAuth(
       params: testAuthRequestParamsValid,
       pairingTopic: connectResponse.pairingTopic,
@@ -163,16 +168,18 @@ class Web3WalletHelpers {
     // Assign session now that we have paired
     // print('Waiting for connect response');
     sessionA = await connectResponse.session.future;
+    // print('Waiting for auth response');
     authResponse = await authReqResponse.completer.future;
 
     final settlePairingLatencyMs = DateTime.now().millisecondsSinceEpoch -
         start -
         (qrCodeScanLatencyMs ?? 0);
 
-    await Future.delayed(Duration(milliseconds: 200));
+    // await Future.delayed(Duration(milliseconds: 200));
+    await signCompleter.future;
+    await authCompleter.future;
 
-    if (sessionB == null) print(sessionB);
-    if (sessionA == null) throw Exception("expect session A to be defined");
+    // if (sessionA == null) throw Exception("expect session A to be defined");
     if (sessionB == null) throw Exception("expect session B to be defined");
 
     expect(sessionA.topic, sessionB!.topic);
@@ -204,14 +211,14 @@ class Web3WalletHelpers {
     expect(sessionA.self.metadata, sessionB!.peer.metadata);
     expect(sessionB!.self.metadata, sessionA.peer.metadata);
 
-    if (authResponse == null)
-      throw Exception("expect authResponse to be defined");
+    // if (authResponse == null)
+    //   throw Exception("expect authResponse to be defined");
 
     expect(authResponse.result != null, true);
     expect(authResponse.error == null, true);
     expect(authResponse.jsonRpcError == null, true);
 
-    if (pairingA == null) throw Exception("expect pairing A to be defined");
+    // if (pairingA == null) throw Exception("expect pairing A to be defined");
     if (pairingB == null) throw Exception("expect pairing B to be defined");
 
     // update pairing state beforehand

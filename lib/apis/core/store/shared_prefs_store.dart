@@ -1,9 +1,9 @@
 import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:walletconnect_dart_v2/apis/core/store/i_store.dart';
-import 'package:walletconnect_dart_v2/apis/utils/constants.dart';
-import 'package:walletconnect_dart_v2/apis/utils/errors.dart';
+import 'package:walletconnect_flutter_v2/apis/core/store/i_store.dart';
+import 'package:walletconnect_flutter_v2/apis/utils/constants.dart';
+import 'package:walletconnect_flutter_v2/apis/utils/errors.dart';
 
 class SharedPrefsStores implements IStore<Map<String, dynamic>> {
   late SharedPreferences prefs;
@@ -63,7 +63,11 @@ class SharedPrefsStores implements IStore<Map<String, dynamic>> {
 
   @override
   bool has(String key) {
-    return _map.containsKey(key);
+    final String keyWithPrefix = _addPrefix(key);
+    if (memoryStore) {
+      return _map.containsKey(keyWithPrefix);
+    }
+    return prefs.containsKey(keyWithPrefix);
   }
 
   /// Gets all of the values of the store

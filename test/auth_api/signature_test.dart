@@ -1,8 +1,5 @@
-import 'dart:typed_data';
-
-import 'package:eth_sig_util/eth_sig_util.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:walletconnect_dart_v2/walletconnect_dart_v2.dart';
+import 'package:walletconnect_flutter_v2/walletconnect_flutter_v2.dart';
 
 import '../shared/shared_test_values.dart';
 import 'utils/signature_constants.dart';

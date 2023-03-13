@@ -3,7 +3,10 @@ class WalletConnectConstants {
   static const CORE_VERSION = 2;
   static const CORE_CONTEXT = "core";
 
-  static const CORE_STORAGE_PREFIX = '$CORE_PROTOCOL@$CORE_VERSION:$CORE_CONTEXT:';
+  static const DEFAULT_RELAY_URL = 'wss://relay.walletconnect.org';
+
+  static const CORE_STORAGE_PREFIX =
+      '$CORE_PROTOCOL@$CORE_VERSION:$CORE_CONTEXT:';
 
   static const THIRTY_SECONDS = 30;
   static const ONE_MINUTE = 60;

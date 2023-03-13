@@ -1,4 +1,4 @@
-import 'package:walletconnect_dart_v2/apis/core/i_core.dart';
+import 'package:walletconnect_flutter_v2/apis/core/i_core.dart';
 
 abstract class IGenericStore<T> {
   abstract final String version;
@@ -7,8 +7,8 @@ abstract class IGenericStore<T> {
   abstract final ICore core;
   abstract final String storageKey;
 
-  abstract final String Function(T) toJsonString;
-  abstract final T Function(String) fromJsonString;
+  abstract final dynamic Function(T) toJson;
+  abstract final T Function(dynamic) fromJson;
 
   Future<void> restore();
   Future<void> persist();

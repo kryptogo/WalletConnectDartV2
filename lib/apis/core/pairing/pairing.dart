@@ -2,29 +2,34 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:event/event.dart';
-import 'package:walletconnect_dart_v2/apis/core/store/generic_store.dart';
-import 'package:walletconnect_dart_v2/apis/core/store/i_generic_store.dart';
-import 'package:walletconnect_dart_v2/apis/core/crypto/crypto_models.dart';
-import 'package:walletconnect_dart_v2/apis/core/i_core.dart';
-import 'package:walletconnect_dart_v2/apis/core/pairing/i_pairing.dart';
-import 'package:walletconnect_dart_v2/apis/core/pairing/i_pairing_store.dart';
-import 'package:walletconnect_dart_v2/apis/models/uri_parse_result.dart';
-import 'package:walletconnect_dart_v2/apis/core/pairing/utils/pairing_models.dart';
-import 'package:walletconnect_dart_v2/apis/core/pairing/pairing_store.dart';
-import 'package:walletconnect_dart_v2/apis/core/pairing/utils/pairing_utils.dart';
-import 'package:walletconnect_dart_v2/apis/core/relay_client/relay_client_models.dart';
-import 'package:walletconnect_dart_v2/apis/models/json_rpc_error.dart';
-import 'package:walletconnect_dart_v2/apis/models/json_rpc_request.dart';
-import 'package:walletconnect_dart_v2/apis/models/json_rpc_response.dart';
-import 'package:walletconnect_dart_v2/apis/models/basic_models.dart';
-import 'package:walletconnect_dart_v2/apis/utils/constants.dart';
-import 'package:walletconnect_dart_v2/apis/utils/errors.dart';
-import 'package:walletconnect_dart_v2/apis/utils/method_constants.dart';
-import 'package:walletconnect_dart_v2/apis/utils/walletconnect_utils.dart';
+import 'package:walletconnect_flutter_v2/apis/core/store/generic_store.dart';
+import 'package:walletconnect_flutter_v2/apis/core/store/i_generic_store.dart';
+import 'package:walletconnect_flutter_v2/apis/core/crypto/crypto_models.dart';
+import 'package:walletconnect_flutter_v2/apis/core/i_core.dart';
+import 'package:walletconnect_flutter_v2/apis/core/pairing/i_pairing.dart';
+import 'package:walletconnect_flutter_v2/apis/core/pairing/i_pairing_store.dart';
+import 'package:walletconnect_flutter_v2/apis/models/uri_parse_result.dart';
+import 'package:walletconnect_flutter_v2/apis/core/pairing/utils/pairing_models.dart';
+import 'package:walletconnect_flutter_v2/apis/core/pairing/pairing_store.dart';
+import 'package:walletconnect_flutter_v2/apis/core/pairing/utils/pairing_utils.dart';
+import 'package:walletconnect_flutter_v2/apis/core/relay_client/relay_client_models.dart';
+import 'package:walletconnect_flutter_v2/apis/models/json_rpc_error.dart';
+import 'package:walletconnect_flutter_v2/apis/models/json_rpc_request.dart';
+import 'package:walletconnect_flutter_v2/apis/models/json_rpc_response.dart';
+import 'package:walletconnect_flutter_v2/apis/models/basic_models.dart';
+import 'package:walletconnect_flutter_v2/apis/utils/constants.dart';
+import 'package:walletconnect_flutter_v2/apis/utils/errors.dart';
+import 'package:walletconnect_flutter_v2/apis/utils/method_constants.dart';
+import 'package:walletconnect_flutter_v2/apis/utils/walletconnect_utils.dart';
 
 class Pairing implements IPairing {
   bool _initialized = false;
 
+  @override
+  final Event<PairingEvent> onPairingCreate = Event<PairingEvent>();
+  @override
+  final Event<PairingActivateEvent> onPairingActivate =
+      Event<PairingActivateEvent>();
   @override
   final Event<PairingEvent> onPairingPing = Event<PairingEvent>();
   @override
@@ -65,11 +70,11 @@ class Pairing implements IPairing {
       core: core,
       context: 'topicToReceiverPublicKey',
       version: '1.0',
-      toJsonString: (String value) {
+      toJson: (String value) {
         return value;
       },
-      fromJsonString: (String value) {
-        return value;
+      fromJson: (dynamic value) {
+        return value as String;
       },
     );
 
@@ -79,12 +84,20 @@ class Pairing implements IPairing {
 
     await _cleanup();
 
+    // Resubscribe to all active pairings
+    final List<PairingInfo> activePairings = pairings!.getAll();
+    for (final PairingInfo pairing in activePairings) {
+      if (pairing.active) {
+        await core.relayClient.subscribe(topic: pairing.topic);
+      }
+    }
+
     _initialized = true;
   }
 
   @override
   Future<CreateResponse> create({
-    List<List<String>> methods = const [],
+    List<List<String>>? methods,
   }) async {
     _checkInitialized();
     final String symKey = core.crypto.getUtils().generateRandomBytes32();
@@ -107,6 +120,13 @@ class Pairing implements IPairing {
       relay: relay,
       methods: methods,
     );
+
+    onPairingCreate.broadcast(
+      PairingEvent(
+        topic: topic,
+      ),
+    );
+
     await pairings!.set(topic, pairing);
     await core.relayClient.subscribe(topic: topic);
     await core.expirer.set(topic, expiry);
@@ -114,6 +134,7 @@ class Pairing implements IPairing {
     return CreateResponse(
       topic: topic,
       uri: uri,
+      pairingInfo: pairing,
     );
   }
 
@@ -166,6 +187,12 @@ class Pairing implements IPairing {
     await core.relayClient.subscribe(topic: topic);
     await core.expirer.set(topic, expiry);
 
+    onPairingCreate.broadcast(
+      PairingEvent(
+        topic: topic,
+      ),
+    );
+
     if (activatePairing) {
       await activate(topic: topic);
     }
@@ -179,6 +206,7 @@ class Pairing implements IPairing {
     final int expiry = WalletConnectUtils.calculateExpiry(
       WalletConnectConstants.THIRTY_DAYS,
     );
+
     await pairings!.update(
       topic,
       expiry: expiry,
@@ -229,9 +257,32 @@ class Pairing implements IPairing {
     required int expiry,
   }) async {
     _checkInitialized();
+
+    // Validate the expiry is less than 30 days
+    if (expiry >
+        WalletConnectUtils.calculateExpiry(
+          WalletConnectConstants.THIRTY_DAYS,
+        )) {
+      throw WalletConnectError(
+        code: -1,
+        message: 'Expiry cannot be more than 30 days away',
+      );
+    }
+
+    onPairingActivate.broadcast(
+      PairingActivateEvent(
+        topic: topic,
+        expiry: expiry,
+      ),
+    );
+
     await pairings!.update(
       topic,
       expiry: expiry,
+    );
+    await core.expirer.set(
+      topic,
+      expiry,
     );
   }
 
@@ -259,25 +310,12 @@ class Pairing implements IPairing {
     await _isValidPing(topic);
 
     if (pairings!.has(topic)) {
-      try {
-        final bool response = await sendRequest(
-          topic,
-          MethodConstants.WC_PAIRING_PING,
-          {},
-        );
-        onPairingPing.broadcast(
-          PairingEvent(
-            topic: topic,
-          ),
-        );
-      } on JsonRpcError catch (e) {
-        onPairingPing.broadcast(
-          PairingEvent(
-            topic: topic,
-            error: e,
-          ),
-        );
-      }
+      // try {
+      final bool _ = await sendRequest(
+        topic,
+        MethodConstants.WC_PAIRING_PING,
+        {},
+      );
     }
   }
 
@@ -287,26 +325,23 @@ class Pairing implements IPairing {
 
     await _isValidDisconnect(topic);
     if (pairings!.has(topic)) {
+      // Send the request to delete the pairing, we don't care if it fails
       try {
-        await sendRequest(
+        sendRequest(
           topic,
           MethodConstants.WC_PAIRING_DELETE,
           Errors.getSdkError(Errors.USER_DISCONNECTED).toJson(),
         );
-        await pairings!.delete(topic);
-        onPairingDelete.broadcast(
-          PairingEvent(
-            topic: topic,
-          ),
-        );
-      } on JsonRpcError catch (e) {
-        onPairingDelete.broadcast(
-          PairingEvent(
-            topic: topic,
-            error: e,
-          ),
-        );
-      }
+      } catch (_) {}
+
+      // Delete the pairing
+      await pairings!.delete(topic);
+
+      onPairingDelete.broadcast(
+        PairingEvent(
+          topic: topic,
+        ),
+      );
     }
   }
 
@@ -317,19 +352,17 @@ class Pairing implements IPairing {
 
   Future<void> isValidPairingTopic({required String topic}) async {
     if (!pairings!.has(topic)) {
-      String message = Errors.getInternalError(
+      throw Errors.getInternalError(
         Errors.NO_MATCHING_KEY,
         context: "pairing topic doesn't exist: $topic",
-      ).message;
-      throw JsonRpcError.invalidParams(message);
+      );
     }
 
     if (await core.expirer.checkAndExpire(topic)) {
-      String message = Errors.getInternalError(
+      throw Errors.getInternalError(
         Errors.EXPIRED,
         context: "pairing topic: $topic",
-      ).message;
-      throw JsonRpcError.invalidParams(message);
+      );
     }
   }
 
@@ -349,11 +382,17 @@ class Pairing implements IPairing {
       id: id,
     );
     final JsonRpcRequest request = JsonRpcRequest.fromJson(payload);
-    final String message = await core.crypto.encode(
+
+    final String? message = await core.crypto.encode(
       topic,
       payload,
       options: encodeOptions,
     );
+
+    if (message == null) {
+      return;
+    }
+
     RpcOptions opts = MethodConstants.RPC_OPTS[method]!['req']!;
     if (ttl != null) {
       opts = opts.copyWith(ttl: ttl);
@@ -369,16 +408,20 @@ class Pairing implements IPairing {
       ttl: opts.ttl,
       tag: opts.tag,
     );
-    final Completer completer = Completer.sync();
+    final Completer completer = Completer();
     pendingRequests[payload['id']] = completer;
 
     // Get the result from the completer, if it's an error, throw it
-    final result = await completer.future;
-    if (result is JsonRpcError) {
-      throw result;
-    }
+    try {
+      final result = await completer.future;
+      // if (result is JsonRpcError) {
+      //   throw result;
+      // }
 
-    return result;
+      return result;
+    } catch (e) {
+      rethrow;
+    }
   }
 
   Future<void> sendResult(
@@ -393,15 +436,16 @@ class Pairing implements IPairing {
       id,
       result,
     );
-    final String message = await core.crypto.encode(
+    final String? message = await core.crypto.encode(
       topic,
       payload,
       options: encodeOptions,
     );
-    // final JsonRpcRecord? record = core.history.get(id);
-    // if (record == null) {
-    //   return;
-    // }
+
+    if (message == null) {
+      return;
+    }
+
     final RpcOptions opts = MethodConstants.RPC_OPTS[method]!['res']!;
     await core.relayClient.publish(
       topic: topic,
@@ -423,11 +467,16 @@ class Pairing implements IPairing {
       id,
       error,
     );
-    final String message = await core.crypto.encode(
+    final String? message = await core.crypto.encode(
       topic,
       payload,
       options: encodeOptions,
     );
+
+    if (message == null) {
+      return;
+    }
+
     final RpcOptions opts = MethodConstants.RPC_OPTS.containsKey(method)
         ? MethodConstants.RPC_OPTS[method]!['res']!
         : MethodConstants
@@ -511,13 +560,18 @@ class Pairing implements IPairing {
     }
 
     // Decode the message
-    String payloadString = await core.crypto.decode(
+    String? payloadString = await core.crypto.decode(
       event.topic,
       event.message,
       options: DecodeOptions(
         receiverPublicKey: receiverPublicKey,
       ),
     );
+
+    if (payloadString == null) {
+      return;
+    }
+
     Map<String, dynamic> data = jsonDecode(payloadString);
 
     // If it's an rpc request, handle it
@@ -531,7 +585,7 @@ class Pairing implements IPairing {
       }
     }
     // Otherwise handle it as a response
-    else if (data.containsKey('result')) {
+    else {
       final response = JsonRpcResponse.fromJson(data);
       final JsonRpcRecord? record = core.history.get(response.id);
       if (record == null) {
@@ -540,17 +594,12 @@ class Pairing implements IPairing {
 
       // print('got here');
       if (pendingRequests.containsKey(response.id)) {
-        pendingRequests.remove(response.id)!.complete(response.result);
+        if (response.error != null) {
+          pendingRequests.remove(response.id)!.completeError(response.error!);
+        } else {
+          pendingRequests.remove(response.id)!.complete(response.result);
+        }
       }
-
-      // if (routerMapRequest.containsKey(record.method)) {
-      //   routerMapRequest[record.method]!(event.topic, response);
-      // } else {
-      //   _onUnkownRpcMethodResponse(record.method);
-      // }
-    } else if (data.containsKey('error')) {
-      final err = JsonRpcError.fromJson(data['error']);
-      pendingRequests.remove(data['id'])!.completeError(err);
     }
   }
 

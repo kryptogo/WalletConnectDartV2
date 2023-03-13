@@ -1,30 +1,36 @@
-import 'dart:convert';
+import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:walletconnect_dart_v2/apis/core/store/generic_store.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/i_sign_engine_app.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/i_sign_engine_common.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/i_sign_engine_wallet.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/sign_engine.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/utils/sign_constants.dart';
-import 'package:walletconnect_dart_v2/walletconnect_dart_v2.dart';
+import 'package:walletconnect_flutter_v2/apis/core/store/generic_store.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/i_sign_engine_app.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/i_sign_engine_common.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/i_sign_engine_wallet.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/sign_engine.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/utils/sign_constants.dart';
+import 'package:walletconnect_flutter_v2/walletconnect_flutter_v2.dart';
 
 import '../shared/shared_test_values.dart';
 import 'utils/engine_constants.dart';
 import 'utils/sign_client_constants.dart';
-import '../shared/sign_client_helpers.dart';
+import 'sign_client_helpers.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  final List<Future<ISignEngineApp> Function(ICore, PairingMetadata)>
-      signAppCreators = [
-    (ICore core, PairingMetadata metadata) async =>
-        await SignClient.createInstance(
-          core: core,
+  final List<Future<ISignEngineApp> Function(PairingMetadata)> signAppCreators =
+      [
+    (PairingMetadata metadata) async => await SignClient.createInstance(
+          projectId: TEST_PROJECT_ID,
+          relayUrl: TEST_RELAY_URL,
           metadata: metadata,
+          memoryStore: true,
         ),
-    (ICore core, PairingMetadata metadata) async {
+    (PairingMetadata metadata) async {
+      final core = Core(
+        projectId: TEST_PROJECT_ID,
+        relayUrl: TEST_RELAY_URL,
+        memoryStore: true,
+      );
       ISignEngine e = SignEngine(
         core: core,
         metadata: metadata,
@@ -32,11 +38,11 @@ void main() {
           core: core,
           context: SignConstants.CONTEXT_PROPOSALS,
           version: SignConstants.VERSION_PROPOSALS,
-          toJsonString: (ProposalData value) {
-            return jsonEncode(value.toJson());
+          toJson: (ProposalData value) {
+            return value.toJson();
           },
-          fromJsonString: (String value) {
-            return ProposalData.fromJson(jsonDecode(value));
+          fromJson: (dynamic value) {
+            return ProposalData.fromJson(value);
           },
         ),
         sessions: Sessions(core),
@@ -44,11 +50,11 @@ void main() {
           core: core,
           context: SignConstants.CONTEXT_PENDING_REQUESTS,
           version: SignConstants.VERSION_PENDING_REQUESTS,
-          toJsonString: (SessionRequest value) {
-            return jsonEncode(value.toJson());
+          toJson: (SessionRequest value) {
+            return value.toJson();
           },
-          fromJsonString: (String value) {
-            return SessionRequest.fromJson(jsonDecode(value));
+          fromJson: (dynamic value) {
+            return SessionRequest.fromJson(value);
           },
         ),
       );
@@ -57,21 +63,28 @@ void main() {
 
       return e;
     },
-    (ICore core, PairingMetadata metadata) async =>
-        await Web3App.createInstance(
-          core: core,
+    (PairingMetadata metadata) async => await Web3App.createInstance(
+          projectId: TEST_PROJECT_ID,
+          relayUrl: TEST_RELAY_URL,
           metadata: metadata,
+          memoryStore: true,
         ),
   ];
 
-  final List<Future<ISignEngineWallet> Function(ICore, PairingMetadata)>
+  final List<Future<ISignEngineWallet> Function(PairingMetadata)>
       signWalletCreators = [
-    (ICore core, PairingMetadata metadata) async =>
-        await SignClient.createInstance(
-          core: core,
+    (PairingMetadata metadata) async => await SignClient.createInstance(
+          projectId: TEST_PROJECT_ID,
+          relayUrl: TEST_RELAY_URL,
           metadata: metadata,
+          memoryStore: true,
         ),
-    (ICore core, PairingMetadata metadata) async {
+    (PairingMetadata metadata) async {
+      final core = Core(
+        projectId: TEST_PROJECT_ID,
+        relayUrl: TEST_RELAY_URL,
+        memoryStore: true,
+      );
       ISignEngine e = SignEngine(
         core: core,
         metadata: metadata,
@@ -79,11 +92,11 @@ void main() {
           core: core,
           context: SignConstants.CONTEXT_PROPOSALS,
           version: SignConstants.VERSION_PROPOSALS,
-          toJsonString: (ProposalData value) {
-            return jsonEncode(value.toJson());
+          toJson: (ProposalData value) {
+            return value.toJson();
           },
-          fromJsonString: (String value) {
-            return ProposalData.fromJson(jsonDecode(value));
+          fromJson: (dynamic value) {
+            return ProposalData.fromJson(value);
           },
         ),
         sessions: Sessions(core),
@@ -91,11 +104,11 @@ void main() {
           core: core,
           context: SignConstants.CONTEXT_PENDING_REQUESTS,
           version: SignConstants.VERSION_PENDING_REQUESTS,
-          toJsonString: (SessionRequest value) {
-            return jsonEncode(value.toJson());
+          toJson: (SessionRequest value) {
+            return value.toJson();
           },
-          fromJsonString: (String value) {
-            return SessionRequest.fromJson(jsonDecode(value));
+          fromJson: (dynamic value) {
+            return SessionRequest.fromJson(value);
           },
         ),
       );
@@ -104,10 +117,11 @@ void main() {
 
       return e;
     },
-    (ICore core, PairingMetadata metadata) async =>
-        await Web3Wallet.createInstance(
-          core: core,
+    (PairingMetadata metadata) async => await Web3Wallet.createInstance(
+          projectId: TEST_PROJECT_ID,
+          relayUrl: TEST_RELAY_URL,
           metadata: metadata,
+          memoryStore: true,
         ),
   ];
 
@@ -124,17 +138,17 @@ void main() {
   group('expiration', () {
     test('deletes session', () async {
       final client = await SignClient.createInstance(
-        core: Core(
-          relayUrl: TEST_RELAY_URL,
-          projectId: TEST_PROJECT_ID,
-          memoryStore: true,
-        ),
+        relayUrl: TEST_RELAY_URL,
+        projectId: TEST_PROJECT_ID,
+        memoryStore: true,
         metadata: PairingMetadata.empty(),
       );
 
       int counter = 0;
+      final completer = Completer.sync();
       client.onSessionExpire.subscribe((args) {
         counter++;
+        completer.complete();
       });
 
       client.sessions.set(TEST_SESSION_TOPIC, testSessionExpired);
@@ -145,7 +159,8 @@ void main() {
 
       client.core.expirer.expire(TEST_SESSION_TOPIC);
 
-      await Future.delayed(Duration(milliseconds: 150));
+      // await Future.delayed(Duration(milliseconds: 150));
+      await completer.future;
 
       expect(client.sessions.has(TEST_SESSION_TOPIC), false);
       expect(counter, 1);
@@ -153,27 +168,25 @@ void main() {
 
     test('deletes proposal', () async {
       final client = await SignClient.createInstance(
-        core: Core(
-          relayUrl: TEST_RELAY_URL,
-          projectId: TEST_PROJECT_ID,
-          memoryStore: true,
-        ),
+        relayUrl: TEST_RELAY_URL,
+        projectId: TEST_PROJECT_ID,
+        memoryStore: true,
         metadata: PairingMetadata.empty(),
       );
-      client.proposals.set(
+      await client.proposals.set(
         TEST_PROPOSAL_EXPIRED_ID.toString(),
         TEST_PROPOSAL_EXPIRED,
       );
-      client.core.expirer.set(
+      await client.core.expirer.set(
         TEST_PROPOSAL_EXPIRED_ID.toString(),
         TEST_PROPOSAL_EXPIRED.expiry,
       );
 
-      client.core.expirer.expire(
+      await client.core.expirer.expire(
         TEST_PROPOSAL_EXPIRED_ID.toString(),
       );
 
-      await Future.delayed(Duration(milliseconds: 150));
+      // await Future.delayed(Duration(milliseconds: 150));
 
       expect(
         client.proposals.has(
@@ -187,10 +200,8 @@ void main() {
 
 void signingEngineTests({
   required String context,
-  required Future<ISignEngineApp> Function(ICore, PairingMetadata)
-      clientACreator,
-  required Future<ISignEngineWallet> Function(ICore, PairingMetadata)
-      clientBCreator,
+  required Future<ISignEngineApp> Function(PairingMetadata) clientACreator,
+  required Future<ISignEngineWallet> Function(PairingMetadata) clientBCreator,
 }) {
   group(context, () {
     late ISignEngineApp clientA;
@@ -199,11 +210,6 @@ void signingEngineTests({
 
     setUp(() async {
       clientA = await clientACreator(
-        Core(
-          relayUrl: TEST_RELAY_URL,
-          projectId: TEST_PROJECT_ID,
-          memoryStore: true,
-        ),
         PairingMetadata(
           name: 'App A (Proposer, dapp)',
           description: 'Description of Proposer App run by client A',
@@ -212,11 +218,6 @@ void signingEngineTests({
         ),
       );
       clientB = await clientBCreator(
-        Core(
-          relayUrl: TEST_RELAY_URL,
-          projectId: TEST_PROJECT_ID,
-          memoryStore: true,
-        ),
         PairingMetadata(
           name: 'App B (Responder, Wallet)',
           description: 'Description of Proposer App run by client B',
@@ -241,13 +242,17 @@ void signingEngineTests({
       });
 
       test('connects, reconnects, and emits proper events', () async {
+        Completer completerA = Completer();
+        Completer completerB = Completer();
         int counterA = 0;
         int counterB = 0;
         clientA.onSessionConnect.subscribe((args) {
           counterA++;
+          completerA.complete();
         });
         clientB.onSessionProposal.subscribe((args) {
           counterB++;
+          completerB.complete();
         });
 
         final connectionInfo = await SignClientHelpers.testConnectPairApprove(
@@ -255,7 +260,22 @@ void signingEngineTests({
           clientB,
         );
 
-        await Future.delayed(Duration(milliseconds: 100));
+        // await Future.delayed(Duration(milliseconds: 100));
+        await completerA.future;
+        await completerB.future;
+
+        completerA = Completer();
+        completerB = Completer();
+        // clientA.onSessionConnect.unsubscribeAll();
+        // clientB.onSessionProposal.unsubscribeAll();
+        // clientA.onSessionConnect.subscribe((args) {
+        //   counterA++;
+        //   completerA.complete();
+        // });
+        // clientB.onSessionProposal.subscribe((args) {
+        //   counterB++;
+        //   completerB.complete();
+        // });
 
         expect(counterA, 1);
         expect(counterB, 1);
@@ -264,21 +284,33 @@ void signingEngineTests({
           clientA.pairings.getAll().length,
           clientB.pairings.getAll().length,
         );
+        expect(clientA.getActiveSessions().length, 1);
+        expect(clientB.getActiveSessions().length, 1);
         expect(
-          clientA.getActiveSessions().length,
+          clientA
+              .getSessionsForPairing(
+                pairingTopic: connectionInfo.pairing.topic,
+              )
+              .length,
           1,
         );
         expect(
-          clientA.getActiveSessions().length,
-          clientB.getActiveSessions().length,
+          clientB
+              .getSessionsForPairing(
+                pairingTopic: connectionInfo.pairing.topic,
+              )
+              .length,
+          1,
         );
-        final connectionInfo2 = await SignClientHelpers.testConnectPairApprove(
+        final _ = await SignClientHelpers.testConnectPairApprove(
           clientA,
           clientB,
           pairingTopic: connectionInfo.pairing.topic,
         );
 
-        await Future.delayed(Duration(milliseconds: 100));
+        // await Future.delayed(Duration(milliseconds: 100));
+        await completerA.future;
+        await completerB.future;
 
         expect(counterA, 2);
         expect(counterB, 2);
@@ -297,7 +329,7 @@ void signingEngineTests({
           clientA.pairings.getAll().length,
           clientB.pairings.getAll().length,
         );
-        final connectionInfo2 = await SignClientHelpers.testConnectPairApprove(
+        final _ = await SignClientHelpers.testConnectPairApprove(
           clientA,
           clientB,
           pairingTopic: connectionInfo.pairing.topic,
@@ -307,7 +339,40 @@ void signingEngineTests({
     });
 
     group('connect', () {
-      test('process emits proper events', () async {});
+      test('creates correct URI', () async {
+        ConnectResponse response = await clientA.connect(
+          requiredNamespaces: TEST_REQUIRED_NAMESPACES,
+        );
+
+        expect(response.uri != null, true);
+        URIParseResult parsed = WalletConnectUtils.parseUri(response.uri!);
+        expect(parsed.protocol, 'wc');
+        expect(parsed.version, '2');
+        expect(parsed.topic, response.pairingTopic);
+        expect(parsed.relay.protocol, 'irn');
+        if (clientA is IWeb3App) {
+          expect(parsed.methods.length, 3);
+          expect(parsed.methods[0], MethodConstants.WC_SESSION_PROPOSE);
+          expect(parsed.methods[1], MethodConstants.WC_SESSION_REQUEST);
+          expect(parsed.methods[2], MethodConstants.WC_AUTH_REQUEST);
+        } else {
+          expect(parsed.methods.length, 2);
+          expect(parsed.methods[0], MethodConstants.WC_SESSION_PROPOSE);
+          expect(parsed.methods[1], MethodConstants.WC_SESSION_REQUEST);
+        }
+
+        response = await clientA.connect(
+          requiredNamespaces: TEST_REQUIRED_NAMESPACES,
+          methods: [],
+        );
+
+        expect(response.uri != null, true);
+        parsed = WalletConnectUtils.parseUri(response.uri!);
+        expect(parsed.protocol, 'wc');
+        expect(parsed.version, '2');
+        expect(parsed.relay.protocol, 'irn');
+        expect(parsed.methods.length, 0);
+      });
 
       test('invalid topic', () {
         expect(
@@ -411,8 +476,16 @@ void signingEngineTests({
         );
 
         int counter = 0;
+        Completer completer = Completer();
         clientB.core.expirer.onExpire.subscribe((args) {
           counter++;
+          completer.complete();
+        });
+        int counterSession = 0;
+        Completer completer2 = Completer();
+        clientB.onProposalExpire.subscribe((args) {
+          counterSession++;
+          completer2.complete();
         });
         expect(
           () async => await clientB.approveSession(
@@ -428,7 +501,10 @@ void signingEngineTests({
           ),
         );
 
-        await Future.delayed(Duration(milliseconds: 250));
+        // await Future.delayed(Duration(milliseconds: 250));
+        await completer.future;
+        await completer2.future;
+
         expect(
           clientB.proposals.has(
             TEST_PROPOSAL_EXPIRED_ID.toString(),
@@ -436,7 +512,9 @@ void signingEngineTests({
           false,
         );
         expect(counter, 1);
+        expect(counterSession, 1);
         clientB.core.expirer.onExpire.unsubscribeAll();
+        clientB.onProposalExpire.unsubscribeAll();
       });
 
       test('invalid namespaces', () async {
@@ -506,15 +584,17 @@ void signingEngineTests({
         );
       });
 
-      test('deletes the proposal', () async {
-        await clientB.proposals.set(
-          TEST_PROPOSAL_VALID_ID.toString(),
-          TEST_PROPOSAL_VALID,
+      test('throws catchable error properly', () async {
+        await SignClientHelpers.testConnectPairReject(
+          clientA,
+          clientB,
         );
+      });
 
+      test('deletes the proposal', () async {
         await clientB.rejectSession(
           id: TEST_PROPOSAL_VALID_ID,
-          reason: WalletConnectErrorResponse(code: -1, message: 'reason'),
+          reason: WalletConnectError(code: -1, message: 'reason'),
         );
 
         expect(
@@ -529,7 +609,7 @@ void signingEngineTests({
         expect(
           () async => await clientB.rejectSession(
             id: TEST_APPROVE_ID_INVALID,
-            reason: WalletConnectErrorResponse(code: -1, message: 'reason'),
+            reason: WalletConnectError(code: -1, message: 'reason'),
           ),
           throwsA(
             isA<WalletConnectError>().having(
@@ -541,13 +621,21 @@ void signingEngineTests({
         );
 
         int counter = 0;
+        Completer completer = Completer();
         clientB.core.expirer.onExpire.subscribe((args) {
           counter++;
+          completer.complete();
+        });
+        int counter2 = 0;
+        Completer completer2 = Completer();
+        clientB.onProposalExpire.subscribe((args) {
+          counter2++;
+          completer2.complete();
         });
         expect(
           () async => await clientB.rejectSession(
             id: TEST_PROPOSAL_EXPIRED_ID,
-            reason: WalletConnectErrorResponse(code: -1, message: 'reason'),
+            reason: WalletConnectError(code: -1, message: 'reason'),
           ),
           throwsA(
             isA<WalletConnectError>().having(
@@ -558,7 +646,10 @@ void signingEngineTests({
           ),
         );
 
-        await Future.delayed(Duration(milliseconds: 150));
+        // await Future.delayed(Duration(milliseconds: 150));
+        await completer.future;
+        await completer2.future;
+
         expect(
           clientB.proposals.has(
             TEST_PROPOSAL_EXPIRED_ID.toString(),
@@ -566,7 +657,9 @@ void signingEngineTests({
           false,
         );
         expect(counter, 1);
+        expect(counter2, 1);
         clientB.core.expirer.onExpire.unsubscribeAll();
+        clientB.onProposalExpire.unsubscribeAll();
       });
     });
 
@@ -581,8 +674,10 @@ void signingEngineTests({
         );
 
         int counter = 0;
+        Completer completer = Completer();
         clientA.onSessionUpdate.subscribe((args) {
           counter++;
+          completer.complete();
         });
 
         await clientB.updateSession(
@@ -590,7 +685,8 @@ void signingEngineTests({
           namespaces: {EVM_NAMESPACE: TEST_ETH_ARB_NAMESPACE},
         );
 
-        await Future.delayed(Duration(milliseconds: 100));
+        // await Future.delayed(Duration(milliseconds: 100));
+        await completer.future;
 
         final resultA =
             clientA.sessions.get(connectionInfo.session.topic)!.namespaces;
@@ -633,9 +729,17 @@ void signingEngineTests({
           ),
         );
 
-        int counter = 0;
+        int counterExpire = 0;
+        Completer completerExpire = Completer();
         clientB.core.expirer.onExpire.subscribe((args) {
-          counter++;
+          counterExpire++;
+          completerExpire.complete();
+        });
+        int counterSession = 0;
+        Completer completerSession = Completer();
+        clientB.onSessionExpire.subscribe((args) {
+          counterSession++;
+          completerSession.complete();
         });
         expect(
           () async => await clientB.updateSession(
@@ -650,7 +754,9 @@ void signingEngineTests({
             ),
           ),
         );
-        await Future.delayed(Duration(milliseconds: 150));
+        // await Future.delayed(Duration(milliseconds: 150));
+        await completerExpire.future;
+        await completerSession.future;
 
         expect(
           clientB.sessions.has(
@@ -658,8 +764,10 @@ void signingEngineTests({
           ),
           false,
         );
-        expect(counter, 1);
+        expect(counterExpire, 1);
+        expect(counterSession, 1);
         clientB.core.expirer.onExpire.unsubscribeAll();
+        clientB.onSessionExpire.unsubscribeAll();
       });
 
       test('invalid namespaces', () async {
@@ -716,8 +824,10 @@ void signingEngineTests({
         // );
 
         int counter = 0;
+        Completer completer = Completer();
         clientA.onSessionExtend.subscribe((args) {
           counter++;
+          completer.complete();
         });
 
         final offset = 100;
@@ -727,7 +837,8 @@ void signingEngineTests({
           topic: connectionInfo.session.topic,
         );
 
-        await Future.delayed(Duration(milliseconds: 100));
+        // await Future.delayed(Duration(milliseconds: 100));
+        await completer.future;
 
         final endingExpiryA =
             clientA.sessions.get(connectionInfo.session.topic)!.expiry;
@@ -783,8 +894,16 @@ void signingEngineTests({
         );
 
         int counter = 0;
+        Completer completer = Completer();
         clientB.core.expirer.onExpire.subscribe((args) {
           counter++;
+          completer.complete();
+        });
+        int counterSession = 0;
+        Completer completerSession = Completer();
+        clientB.onSessionExpire.subscribe((args) {
+          counterSession++;
+          completerSession.complete();
         });
         expect(
           () async => await clientB.extendSession(
@@ -799,7 +918,10 @@ void signingEngineTests({
           ),
         );
 
-        await Future.delayed(Duration(milliseconds: 150));
+        // await Future.delayed(Duration(milliseconds: 150));
+        await completer.future;
+        await completerSession.future;
+
         expect(
           clientB.sessions.has(
             TEST_SESSION_EXPIRED_TOPIC,
@@ -807,7 +929,9 @@ void signingEngineTests({
           false,
         );
         expect(counter, 1);
+        expect(counterSession, 1);
         clientB.core.expirer.onExpire.unsubscribeAll();
+        clientB.onSessionExpire.unsubscribeAll();
       });
     });
 
@@ -822,7 +946,7 @@ void signingEngineTests({
 
         // No handler
         try {
-          final response = await clientA.request(
+          final _ = await clientA.request(
             topic: connectionInfo.session.topic,
             chainId: TEST_ETHEREUM_CHAIN,
             request: SessionRequestParams(
@@ -841,7 +965,10 @@ void signingEngineTests({
         expect(clientB.getPendingSessionRequests().length, 1);
 
         // Valid handler
-        final requestHandler = (topic, request) async {
+        Future<dynamic> Function(String, dynamic) requestHandler = (
+          String topic,
+          dynamic request,
+        ) async {
           expect(topic, sessionTopic);
           expect(request, TEST_MESSAGE_1);
 
@@ -871,13 +998,70 @@ void signingEngineTests({
           expect(false, true);
         }
 
-        await Future.delayed(Duration(milliseconds: 150));
+        // Valid handler that throws an error
+        requestHandler = (
+          String topic,
+          dynamic request,
+        ) async {
+          if (request is String) {
+            throw Errors.getSdkError(Errors.USER_REJECTED_SIGN);
+          } else {
+            return request['try'];
+          }
+        };
+        clientB.registerRequestHandler(
+          chainId: TEST_ETHEREUM_CHAIN,
+          method: TEST_METHOD_1,
+          handler: requestHandler,
+        );
+
+        try {
+          await clientA.request(
+            topic: connectionInfo.session.topic,
+            chainId: TEST_ETHEREUM_CHAIN,
+            request: SessionRequestParams(
+              method: TEST_METHOD_1,
+              params: TEST_MESSAGE_1,
+            ),
+          );
+        } on JsonRpcError catch (e) {
+          expect(
+            e.code,
+            Errors.getSdkError(Errors.USER_REJECTED_SIGN).code,
+          );
+          expect(
+            e.message,
+            Errors.getSdkError(Errors.USER_REJECTED_SIGN).message,
+          );
+        }
+
+        try {
+          await clientA.request(
+            topic: connectionInfo.session.topic,
+            chainId: TEST_ETHEREUM_CHAIN,
+            request: SessionRequestParams(
+              method: TEST_METHOD_1,
+              params: {'test': 'swag'},
+            ),
+          );
+        } on JsonRpcError catch (e) {
+          expect(
+            e.code,
+            JsonRpcError.invalidParams('swag').code,
+          );
+        }
+
+        await Future.delayed(Duration(milliseconds: 500)); // TODO: remove
         expect(clientB.getPendingSessionRequests().length, 1);
 
         /// Event driven, null handler ///
         clientB.registerRequestHandler(
           chainId: TEST_ETHEREUM_CHAIN,
           method: TEST_METHOD_1,
+        );
+        clientB.registerRequestHandler(
+          chainId: TEST_ETHEREUM_CHAIN,
+          method: TEST_METHOD_2,
         );
         clientB.onSessionRequest.subscribe((
           SessionRequestEvent? request,
@@ -886,22 +1070,32 @@ void signingEngineTests({
           expect(request!.topic, sessionTopic);
           expect(request.params, TEST_MESSAGE_1);
 
-          expect(clientB.pendingRequests.has(request.id.toString()), true);
-          expect(clientB.getPendingSessionRequests().length, 2);
+          if (request.method == TEST_METHOD_1) {
+            expect(clientB.pendingRequests.has(request.id.toString()), true);
+            expect(clientB.getPendingSessionRequests().length, 2);
 
-          await clientB.respondSessionRequest(
-            topic: request.topic,
-            response: JsonRpcResponse<String>(
-              id: request.id,
-              result: TEST_MESSAGE_1,
-            ),
-          );
+            await clientB.respondSessionRequest(
+              topic: request.topic,
+              response: JsonRpcResponse<String>(
+                id: request.id,
+                result: TEST_MESSAGE_1,
+              ),
+            );
 
-          expect(clientB.pendingRequests.has(request.id.toString()), false);
+            expect(clientB.pendingRequests.has(request.id.toString()), false);
+          } else if (request.method == TEST_METHOD_2) {
+            await clientB.respondSessionRequest(
+              topic: request.topic,
+              response: JsonRpcResponse(
+                id: request.id,
+                error: JsonRpcError.invalidParams(request.params),
+              ),
+            );
+          }
         });
 
         try {
-          final response = await clientA.request(
+          String response = await clientA.request(
             topic: connectionInfo.session.topic,
             chainId: TEST_ETHEREUM_CHAIN,
             request: SessionRequestParams(
@@ -911,9 +1105,24 @@ void signingEngineTests({
           );
 
           expect(response, TEST_MESSAGE_1);
+
+          String _ = await clientA.request(
+            topic: connectionInfo.session.topic,
+            chainId: TEST_ETHEREUM_CHAIN,
+            request: SessionRequestParams(
+              method: TEST_METHOD_2,
+              params: TEST_MESSAGE_1,
+            ),
+          );
+
+          expect(true, false);
         } on JsonRpcError catch (e) {
-          print(e);
-          expect(false, true);
+          // print(e);
+          expect(
+            e.code,
+            JsonRpcError.invalidParams('swag').code,
+          );
+          expect(e.message.contains(TEST_MESSAGE_1), true);
         }
 
         // Try an error
@@ -939,7 +1148,7 @@ void signingEngineTests({
         });
 
         try {
-          final response = await clientA.request(
+          final _ = await clientA.request(
             topic: connectionInfo.session.topic,
             chainId: TEST_ETHEREUM_CHAIN,
             request: SessionRequestParams(
@@ -989,8 +1198,16 @@ void signingEngineTests({
         );
 
         int counter = 0;
+        Completer completer = Completer();
         clientA.core.expirer.onExpire.subscribe((args) {
           counter++;
+          completer.complete();
+        });
+        int counterSession = 0;
+        Completer completerSession = Completer();
+        clientA.onSessionExpire.subscribe((args) {
+          counterSession++;
+          completerSession.complete();
         });
         // print(
         //     'clientA.session exiry: ${clientA.sessions.get(TEST_SESSION_EXPIRED_TOPIC)!.expiry}');
@@ -1012,7 +1229,10 @@ void signingEngineTests({
           ),
         );
 
-        await Future.delayed(Duration(milliseconds: 150));
+        // await Future.delayed(Duration(milliseconds: 150));
+        await completer.future;
+        await completerSession.future;
+
         expect(
           clientA.sessions.has(
             TEST_SESSION_EXPIRED_TOPIC,
@@ -1020,7 +1240,9 @@ void signingEngineTests({
           false,
         );
         expect(counter, 1);
+        expect(counterSession, 1);
         clientA.core.expirer.onExpire.unsubscribeAll();
+        clientB.onSessionExpire.unsubscribeAll();
       });
 
       test('invalid chains or methods', () async {
@@ -1087,10 +1309,12 @@ void signingEngineTests({
           );
         }
 
+        final completer = Completer<void>();
         clientA.onSessionEvent.subscribe((SessionEvent? session) {
           expect(session != null, true);
           expect(session!.topic, sessionTopic);
           expect(session.data, TEST_MESSAGE_1);
+          completer.complete();
         });
 
         final requestHandler = (topic, request) async {
@@ -1122,7 +1346,7 @@ void signingEngineTests({
         }
 
         // Wait a second for the event to fire
-        await Future.delayed(const Duration(milliseconds: 100));
+        await completer.future;
 
         clientA.onSessionEvent.unsubscribeAll();
       });
@@ -1162,8 +1386,16 @@ void signingEngineTests({
         );
 
         int counter = 0;
+        Completer completer = Completer<void>();
         clientB.core.expirer.onExpire.subscribe((args) {
           counter++;
+          completer.complete();
+        });
+        int counterSession = 0;
+        Completer completerSession = Completer();
+        clientB.onSessionExpire.subscribe((args) {
+          counterSession++;
+          completerSession.complete();
         });
         expect(
           () async => await clientB.emitSessionEvent(
@@ -1182,7 +1414,11 @@ void signingEngineTests({
             ),
           ),
         );
-        await Future.delayed(Duration(milliseconds: 150));
+
+        // await Future.delayed(Duration(milliseconds: 150));
+        await completer.future;
+        await completerSession.future;
+
         expect(
           clientB.sessions.has(
             TEST_SESSION_EXPIRED_TOPIC,
@@ -1190,7 +1426,9 @@ void signingEngineTests({
           false,
         );
         expect(counter, 1);
+        expect(counterSession, 1);
         clientB.core.expirer.onExpire.unsubscribeAll();
+        clientB.onSessionExpire.unsubscribeAll();
       });
 
       test('invalid chains or events', () async {
@@ -1240,23 +1478,28 @@ void signingEngineTests({
         final sessionTopic = connectionInfo.session.topic;
         final pairingTopic = connectionInfo.pairing.topic;
 
+        Completer completerA = Completer<void>();
+        Completer completerB = Completer<void>();
         int counterAP = 0;
         int counterBP = 0;
-        clientA.core.pairing.onPairingPing.subscribe((PairingEvent? pairing) {
-          expect(pairing != null, true);
-          expect(pairing!.topic, pairingTopic);
+        clientB.onSessionPing.subscribe((SessionPing? ping) {
+          expect(ping != null, true);
+          expect(ping!.topic, sessionTopic);
           counterAP++;
+          completerA.complete();
         });
         clientB.core.pairing.onPairingPing.subscribe((PairingEvent? pairing) {
           expect(pairing != null, true);
           expect(pairing!.topic, pairingTopic);
           counterBP++;
+          completerB.complete();
         });
 
         await clientA.ping(topic: sessionTopic);
         await clientA.ping(topic: pairingTopic);
 
-        await Future.delayed(Duration(milliseconds: 150));
+        await completerA.future;
+        await completerB.future;
 
         expect(counterAP, 1);
         expect(counterBP, 1);
@@ -1296,8 +1539,16 @@ void signingEngineTests({
         );
 
         int counter = 0;
+        Completer completer = Completer<void>();
         clientA.core.expirer.onExpire.subscribe((args) {
           counter++;
+          completer.complete();
+        });
+        int counterSession = 0;
+        Completer completerSession = Completer();
+        clientA.onSessionExpire.subscribe((args) {
+          counterSession++;
+          completerSession.complete();
         });
         expect(
           () async => await clientA.ping(
@@ -1311,7 +1562,11 @@ void signingEngineTests({
             ),
           ),
         );
-        await Future.delayed(Duration(milliseconds: 150));
+
+        // await Future.delayed(Duration(milliseconds: 150));
+        await completer.future;
+        await completerSession.future;
+
         expect(
           clientA.sessions.has(
             TEST_SESSION_EXPIRED_TOPIC,
@@ -1319,7 +1574,9 @@ void signingEngineTests({
           false,
         );
         expect(counter, 1);
+        expect(counterSession, 1);
         clientA.core.expirer.onExpire.unsubscribeAll();
+        clientA.onSessionExpire.unsubscribeAll();
       });
     });
 
@@ -1331,65 +1588,109 @@ void signingEngineTests({
           clientB,
         );
         String pairingATopic = connectionInfo.pairing.topic;
+        String sessionATopic = connectionInfo.session.topic;
 
+        // Create another proposal that we will check is deleted on disconnect
+        await clientA.connect(
+          requiredNamespaces: TEST_REQUIRED_NAMESPACES,
+          pairingTopic: pairingATopic,
+        );
+        expect(clientA.getPendingSessionProposals().length, 1);
+
+        Completer completerA = Completer<void>();
+        Completer completerB = Completer<void>();
+        Completer completerSessionA = Completer<void>();
+        Completer completerSessionB = Completer<void>();
         int counterA = 0;
         int counterB = 0;
+        int counterSessionA = 0;
+        int counterSessionB = 0;
         clientA.core.pairing.onPairingDelete.subscribe((PairingEvent? e) {
           expect(e != null, true);
           expect(e!.topic, pairingATopic);
           counterA++;
+          completerA.complete();
         });
         clientB.core.pairing.onPairingDelete.subscribe((PairingEvent? e) {
           expect(e != null, true);
           expect(e!.topic, pairingATopic);
           counterB++;
+          completerB.complete();
+        });
+        clientA.onSessionDelete.subscribe((SessionDelete? e) {
+          expect(e != null, true);
+          expect(e!.topic, sessionATopic);
+          counterSessionA++;
+          completerSessionA.complete();
+        });
+        clientB.onSessionDelete.subscribe((SessionDelete? e) {
+          expect(e != null, true);
+          expect(e!.topic, sessionATopic);
+          counterSessionB++;
+          completerSessionB.complete();
         });
 
-        WalletConnectError reason =
-            Errors.getSdkError(Errors.USER_DISCONNECTED);
         await clientA.disconnectSession(
           topic: pairingATopic,
-          reason: WalletConnectErrorResponse(
-            code: reason.code,
-            message: reason.message,
+          reason: Errors.getSdkError(
+            Errors.USER_DISCONNECTED,
           ),
         );
 
-        await Future.delayed(Duration(milliseconds: 150));
+        // await Future.delayed(Duration(milliseconds: 150));
+        await completerA.future;
+        await completerB.future;
+        await completerSessionA.future;
+        await completerSessionB.future;
 
-        // TODO: See if this should delete the session as well
         expect(clientA.pairings.get(pairingATopic), null);
         expect(clientB.pairings.get(pairingATopic), null);
+        expect(clientA.sessions.get(sessionATopic), null);
+        expect(clientB.sessions.get(sessionATopic), null);
+        expect(clientA.getPendingSessionProposals().length, 0);
 
         expect(counterA, 1);
         expect(counterB, 1);
+        expect(counterSessionA, 1);
+        expect(counterSessionB, 1);
+
+        completerA = Completer();
+        completerB = Completer();
+        completerSessionA = Completer();
+        completerSessionB = Completer();
 
         connectionInfo = await SignClientHelpers.testConnectPairApprove(
           clientA,
           clientB,
         );
         pairingATopic = connectionInfo.pairing.topic;
+        sessionATopic = connectionInfo.session.topic;
 
-        reason = Errors.getSdkError(Errors.USER_DISCONNECTED);
         await clientB.disconnectSession(
           topic: pairingATopic,
-          reason: WalletConnectErrorResponse(
-            code: reason.code,
-            message: reason.message,
-          ),
+          reason: Errors.getSdkError(Errors.USER_DISCONNECTED),
         );
 
-        await Future.delayed(Duration(milliseconds: 150));
+        // await Future.delayed(Duration(milliseconds: 150));
+        await completerA.future;
+        await completerB.future;
+        await completerSessionA.future;
+        await completerSessionB.future;
 
-        // TODO: See if this should delete the session as well
         expect(clientA.pairings.get(pairingATopic), null);
         expect(clientB.pairings.get(pairingATopic), null);
+        expect(clientA.sessions.get(sessionATopic), null);
+        expect(clientB.sessions.get(sessionATopic), null);
 
         expect(counterA, 2);
         expect(counterB, 2);
+        expect(counterSessionA, 2);
+        expect(counterSessionB, 2);
 
         clientA.core.pairing.onPairingDelete.unsubscribeAll();
         clientB.core.pairing.onPairingDelete.unsubscribeAll();
+        clientA.onSessionDelete.unsubscribeAll();
+        clientB.onSessionDelete.unsubscribeAll();
       });
 
       test("using session works", () async {
@@ -1400,35 +1701,40 @@ void signingEngineTests({
         );
         String sessionATopic = connectionInfo.session.topic;
 
+        Completer completerA = Completer<void>();
+        Completer completerB = Completer<void>();
         int counterA = 0;
         int counterB = 0;
         clientA.onSessionDelete.subscribe((SessionDelete? e) {
           expect(e != null, true);
           expect(e!.topic, sessionATopic);
           counterA++;
+          completerA.complete();
         });
         clientB.onSessionDelete.subscribe((SessionDelete? e) {
           expect(e != null, true);
           expect(e!.topic, sessionATopic);
           counterB++;
+          completerB.complete();
         });
 
-        WalletConnectError reason =
-            Errors.getSdkError(Errors.USER_DISCONNECTED);
         await clientA.disconnectSession(
           topic: sessionATopic,
-          reason: WalletConnectErrorResponse(
-            code: reason.code,
-            message: reason.message,
-          ),
+          reason: Errors.getSdkError(Errors.USER_DISCONNECTED),
         );
 
-        await Future.delayed(Duration(milliseconds: 250));
+        // await Future.delayed(Duration(milliseconds: 250));
+        await completerA.future;
+        await completerB.future;
 
         expect(clientA.sessions.get(sessionATopic), null);
         expect(clientB.sessions.get(sessionATopic), null);
 
+        expect(counterA, 1);
         expect(counterB, 1);
+
+        completerA = Completer();
+        completerB = Completer();
 
         connectionInfo = await SignClientHelpers.testConnectPairApprove(
           clientA,
@@ -1436,22 +1742,18 @@ void signingEngineTests({
         );
         sessionATopic = connectionInfo.session.topic;
 
-        reason = Errors.getSdkError(Errors.USER_DISCONNECTED);
         await clientB.disconnectSession(
           topic: sessionATopic,
-          reason: WalletConnectErrorResponse(
-            code: reason.code,
-            message: reason.message,
-          ),
+          reason: Errors.getSdkError(Errors.USER_DISCONNECTED),
         );
 
-        await Future.delayed(Duration(milliseconds: 150));
+        await completerA.future;
 
-        // TODO: See if this should delete the session as well
         expect(clientA.pairings.get(sessionATopic), null);
         expect(clientB.pairings.get(sessionATopic), null);
 
-        expect(counterA, 1);
+        expect(counterA, 2);
+        expect(counterB, 2);
 
         clientA.onSessionDelete.unsubscribeAll();
         clientB.onSessionDelete.unsubscribeAll();
@@ -1478,7 +1780,7 @@ void signingEngineTests({
           expect(
             () async => await client.disconnectSession(
               topic: TEST_SESSION_INVALID_TOPIC,
-              reason: WalletConnectErrorResponse(
+              reason: WalletConnectError(
                 code: reason.code,
                 message: reason.message,
               ),
@@ -1493,13 +1795,21 @@ void signingEngineTests({
           );
 
           int counter = 0;
+          Completer completer = Completer<void>();
           client.core.expirer.onExpire.subscribe((e) {
             counter++;
+            completer.complete();
+          });
+          int counterSession = 0;
+          Completer completerSession = Completer();
+          client.onSessionExpire.subscribe((args) {
+            counterSession++;
+            completerSession.complete();
           });
           expect(
             () async => await client.disconnectSession(
               topic: TEST_SESSION_EXPIRED_TOPIC,
-              reason: WalletConnectErrorResponse(
+              reason: WalletConnectError(
                 code: reason.code,
                 message: reason.message,
               ),
@@ -1513,7 +1823,10 @@ void signingEngineTests({
             ),
           );
 
-          await Future.delayed(Duration(milliseconds: 150));
+          // await Future.delayed(Duration(milliseconds: 150));
+          await completer.future;
+          await completerSession.future;
+
           expect(
             client.sessions.has(
               TEST_SESSION_EXPIRED_TOPIC,
@@ -1521,7 +1834,9 @@ void signingEngineTests({
             false,
           );
           expect(counter, 1);
+          expect(counterSession, 1);
           client.core.expirer.onExpire.unsubscribeAll();
+          client.onSessionExpire.unsubscribeAll();
         });
       }
     });

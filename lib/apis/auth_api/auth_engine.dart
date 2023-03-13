@@ -1,27 +1,33 @@
 import 'dart:async';
 
 import 'package:event/event.dart';
-import 'package:walletconnect_dart_v2/apis/auth_api/i_auth_engine.dart';
-import 'package:walletconnect_dart_v2/apis/auth_api/models/auth_client_events.dart';
-import 'package:walletconnect_dart_v2/apis/auth_api/models/auth_client_models.dart';
-import 'package:walletconnect_dart_v2/apis/auth_api/models/json_rpc_models.dart';
-import 'package:walletconnect_dart_v2/apis/core/store/i_generic_store.dart';
-import 'package:walletconnect_dart_v2/apis/auth_api/utils/address_utils.dart';
-import 'package:walletconnect_dart_v2/apis/auth_api/utils/auth_api_validators.dart';
-import 'package:walletconnect_dart_v2/apis/auth_api/utils/auth_constants.dart';
-import 'package:walletconnect_dart_v2/apis/auth_api/utils/auth_signature.dart';
-import 'package:walletconnect_dart_v2/apis/core/crypto/crypto_models.dart';
-import 'package:walletconnect_dart_v2/apis/core/i_core.dart';
-import 'package:walletconnect_dart_v2/apis/core/pairing/utils/pairing_models.dart';
-import 'package:walletconnect_dart_v2/apis/core/pairing/utils/pairing_utils.dart';
-import 'package:walletconnect_dart_v2/apis/models/basic_models.dart';
-import 'package:walletconnect_dart_v2/apis/models/json_rpc_error.dart';
-import 'package:walletconnect_dart_v2/apis/models/json_rpc_request.dart';
-import 'package:walletconnect_dart_v2/apis/utils/constants.dart';
-import 'package:walletconnect_dart_v2/apis/utils/errors.dart';
-import 'package:walletconnect_dart_v2/apis/utils/method_constants.dart';
+import 'package:walletconnect_flutter_v2/apis/auth_api/i_auth_engine.dart';
+import 'package:walletconnect_flutter_v2/apis/auth_api/models/auth_client_events.dart';
+import 'package:walletconnect_flutter_v2/apis/auth_api/models/auth_client_models.dart';
+import 'package:walletconnect_flutter_v2/apis/auth_api/models/json_rpc_models.dart';
+import 'package:walletconnect_flutter_v2/apis/core/store/i_generic_store.dart';
+import 'package:walletconnect_flutter_v2/apis/auth_api/utils/address_utils.dart';
+import 'package:walletconnect_flutter_v2/apis/auth_api/utils/auth_api_validators.dart';
+import 'package:walletconnect_flutter_v2/apis/auth_api/utils/auth_constants.dart';
+import 'package:walletconnect_flutter_v2/apis/auth_api/utils/auth_signature.dart';
+import 'package:walletconnect_flutter_v2/apis/core/crypto/crypto_models.dart';
+import 'package:walletconnect_flutter_v2/apis/core/i_core.dart';
+import 'package:walletconnect_flutter_v2/apis/core/pairing/utils/pairing_models.dart';
+import 'package:walletconnect_flutter_v2/apis/core/pairing/utils/pairing_utils.dart';
+import 'package:walletconnect_flutter_v2/apis/models/basic_models.dart';
+import 'package:walletconnect_flutter_v2/apis/models/json_rpc_error.dart';
+import 'package:walletconnect_flutter_v2/apis/models/json_rpc_request.dart';
+import 'package:walletconnect_flutter_v2/apis/utils/constants.dart';
+import 'package:walletconnect_flutter_v2/apis/utils/errors.dart';
+import 'package:walletconnect_flutter_v2/apis/utils/method_constants.dart';
 
 class AuthEngine implements IAuthEngine {
+  static const List<List<String>> DEFAULT_METHODS = [
+    [
+      MethodConstants.WC_AUTH_REQUEST,
+    ]
+  ];
+
   bool _initialized = false;
 
   @override
@@ -74,6 +80,7 @@ class AuthEngine implements IAuthEngine {
   Future<AuthRequestResponse> requestAuth({
     required AuthRequestParams params,
     String? pairingTopic,
+    List<List<String>>? methods = DEFAULT_METHODS,
   }) async {
     _checkInitialized();
 
@@ -82,7 +89,9 @@ class AuthEngine implements IAuthEngine {
     Uri? uri;
 
     if (pTopic == null) {
-      final CreateResponse newTopicAndUri = await core.pairing.create();
+      final CreateResponse newTopicAndUri = await core.pairing.create(
+        methods: methods,
+      );
       pTopic = newTopicAndUri.topic;
       uri = newTopicAndUri.uri;
     } else {
@@ -182,8 +191,9 @@ class AuthEngine implements IAuthEngine {
     await completeRequests.set(
       id.toString(),
       StoredCacao.fromCacao(
-        cacao,
-        id.toString(),
+        id: id,
+        pairingTopic: pairingTopic,
+        cacao: cacao,
       ),
     );
 
@@ -220,7 +230,7 @@ class AuthEngine implements IAuthEngine {
       final resp = AuthResponse(
         id: id,
         topic: responseTopic,
-        error: WalletConnectErrorResponse(
+        error: WalletConnectError(
           code: -1,
           message: 'Invalid signature',
         ),
@@ -243,7 +253,7 @@ class AuthEngine implements IAuthEngine {
     required int id,
     required String iss,
     CacaoSignature? signature,
-    WalletConnectErrorResponse? error,
+    WalletConnectError? error,
   }) async {
     _checkInitialized();
 
@@ -298,8 +308,9 @@ class AuthEngine implements IAuthEngine {
       await completeRequests.set(
         id.toString(),
         StoredCacao.fromCacao(
-          cacao,
-          id.toString(),
+          id: id,
+          pairingTopic: pendingRequest.pairingTopic,
+          cacao: cacao,
         ),
       );
     }
@@ -312,6 +323,22 @@ class AuthEngine implements IAuthEngine {
       pendingRequests[key.id] = key;
     });
     return pendingRequests;
+  }
+
+  @override
+  Map<int, StoredCacao> getCompletedRequestsForPairing({
+    required String pairingTopic,
+  }) {
+    Map<int, StoredCacao> completedRequests = {};
+    completeRequests
+        .getAll()
+        .where(
+          (e) => e.pairingTopic == pairingTopic,
+        )
+        .forEach((key) {
+      completedRequests[key.id] = key;
+    });
+    return completedRequests;
   }
 
   @override
@@ -357,13 +384,6 @@ class AuthEngine implements IAuthEngine {
     }
   }
 
-  Future<void> _setExpiry(String topic, int expiry) async {
-    if (core.pairing.getStore().has(topic)) {
-      await core.pairing.updateExpiry(topic: topic, expiry: expiry);
-    }
-    await core.expirer.set(topic, expiry);
-  }
-
   /// ---- Relay Events ---- ///
 
   void _registerRelayClientFunctions() {
@@ -390,6 +410,7 @@ class AuthEngine implements IAuthEngine {
         payload.id.toString(),
         PendingAuthRequest(
           id: payload.id,
+          pairingTopic: topic,
           metadata: request.requester,
           cacaoPayload: cacaoPayload,
         ),

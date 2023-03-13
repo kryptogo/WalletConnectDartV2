@@ -1,25 +1,38 @@
-import 'dart:convert';
-
 import 'package:event/event.dart';
-import 'package:walletconnect_dart_v2/apis/auth_api/auth_engine.dart';
-import 'package:walletconnect_dart_v2/apis/auth_api/utils/auth_constants.dart';
-import 'package:walletconnect_dart_v2/apis/core/store/generic_store.dart';
-import 'package:walletconnect_dart_v2/apis/core/store/i_generic_store.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/i_sessions.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/sign_engine.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/utils/sign_constants.dart';
-import 'package:walletconnect_dart_v2/apis/web3app/i_web3app.dart';
-import 'package:walletconnect_dart_v2/walletconnect_dart_v2.dart';
+import 'package:walletconnect_flutter_v2/apis/auth_api/auth_engine.dart';
+import 'package:walletconnect_flutter_v2/apis/auth_api/utils/auth_constants.dart';
+import 'package:walletconnect_flutter_v2/apis/core/store/generic_store.dart';
+import 'package:walletconnect_flutter_v2/apis/core/store/i_generic_store.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/i_sessions.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/sign_engine.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/utils/sign_constants.dart';
+import 'package:walletconnect_flutter_v2/walletconnect_flutter_v2.dart';
 
 class Web3App implements IWeb3App {
+  static const List<List<String>> DEFAULT_METHODS = [
+    [
+      MethodConstants.WC_SESSION_PROPOSE,
+      MethodConstants.WC_SESSION_REQUEST,
+    ],
+    [
+      MethodConstants.WC_AUTH_REQUEST,
+    ]
+  ];
+
   bool _initialized = false;
 
   static Future<Web3App> createInstance({
-    required ICore core,
+    required String projectId,
+    String relayUrl = WalletConnectConstants.DEFAULT_RELAY_URL,
     required PairingMetadata metadata,
+    bool memoryStore = false,
   }) async {
     final client = Web3App(
-      core: core,
+      core: Core(
+        projectId: projectId,
+        relayUrl: relayUrl,
+        memoryStore: memoryStore,
+      ),
       metadata: metadata,
     );
     await client.init();
@@ -50,11 +63,11 @@ class Web3App implements IWeb3App {
         core: core,
         context: SignConstants.CONTEXT_PROPOSALS,
         version: SignConstants.VERSION_PROPOSALS,
-        toJsonString: (ProposalData value) {
-          return jsonEncode(value.toJson());
+        toJson: (ProposalData value) {
+          return value.toJson();
         },
-        fromJsonString: (String value) {
-          return ProposalData.fromJson(jsonDecode(value));
+        fromJson: (dynamic value) {
+          return ProposalData.fromJson(value);
         },
       ),
       sessions: Sessions(core),
@@ -62,11 +75,11 @@ class Web3App implements IWeb3App {
         core: core,
         context: SignConstants.CONTEXT_PENDING_REQUESTS,
         version: SignConstants.VERSION_PENDING_REQUESTS,
-        toJsonString: (SessionRequest value) {
-          return jsonEncode(value.toJson());
+        toJson: (SessionRequest value) {
+          return value.toJson();
         },
-        fromJsonString: (String value) {
-          return SessionRequest.fromJson(jsonDecode(value));
+        fromJson: (dynamic value) {
+          return SessionRequest.fromJson(value);
         },
       ),
     );
@@ -78,21 +91,21 @@ class Web3App implements IWeb3App {
         core: core,
         context: AuthConstants.CONTEXT_AUTH_KEYS,
         version: AuthConstants.VERSION_AUTH_KEYS,
-        toJsonString: (AuthPublicKey value) {
-          return jsonEncode(value.toJson());
+        toJson: (AuthPublicKey value) {
+          return value.toJson();
         },
-        fromJsonString: (String value) {
-          return AuthPublicKey.fromJson(jsonDecode(value));
+        fromJson: (dynamic value) {
+          return AuthPublicKey.fromJson(value);
         },
       ),
       pairingTopics: GenericStore(
         core: core,
         context: AuthConstants.CONTEXT_PAIRING_TOPICS,
         version: AuthConstants.VERSION_PAIRING_TOPICS,
-        toJsonString: (String value) {
+        toJson: (String value) {
           return value;
         },
-        fromJsonString: (String value) {
+        fromJson: (dynamic value) {
           return value;
         },
       ),
@@ -100,22 +113,22 @@ class Web3App implements IWeb3App {
         core: core,
         context: AuthConstants.CONTEXT_AUTH_REQUESTS,
         version: AuthConstants.VERSION_AUTH_REQUESTS,
-        toJsonString: (PendingAuthRequest value) {
-          return jsonEncode(value.toJson());
+        toJson: (PendingAuthRequest value) {
+          return value.toJson();
         },
-        fromJsonString: (String value) {
-          return PendingAuthRequest.fromJson(jsonDecode(value));
+        fromJson: (dynamic value) {
+          return PendingAuthRequest.fromJson(value);
         },
       ),
       completeRequests: GenericStore(
         core: core,
         context: AuthConstants.CONTEXT_COMPLETE_REQUESTS,
         version: AuthConstants.VERSION_COMPLETE_REQUESTS,
-        toJsonString: (StoredCacao value) {
-          return jsonEncode(value.toJson());
+        toJson: (StoredCacao value) {
+          return value.toJson();
         },
-        fromJsonString: (String value) {
-          return StoredCacao.fromJson(jsonDecode(value));
+        fromJson: (dynamic value) {
+          return StoredCacao.fromJson(value);
         },
       ),
     );
@@ -134,17 +147,6 @@ class Web3App implements IWeb3App {
     _initialized = true;
   }
 
-  @override
-  Future<PairingInfo> pair({
-    required Uri uri,
-  }) async {
-    try {
-      return await signEngine.pair(uri: uri);
-    } catch (e) {
-      rethrow;
-    }
-  }
-
   ///---------- SIGN ENGINE ----------///
 
   @override
@@ -153,6 +155,9 @@ class Web3App implements IWeb3App {
   Event<SessionEvent> get onSessionEvent => signEngine.onSessionEvent;
   @override
   Event<SessionExpire> get onSessionExpire => signEngine.onSessionExpire;
+  @override
+  Event<SessionProposalEvent> get onProposalExpire =>
+      signEngine.onProposalExpire;
   @override
   Event<SessionExtend> get onSessionExtend => signEngine.onSessionExtend;
   @override
@@ -180,6 +185,7 @@ class Web3App implements IWeb3App {
     Map<String, String>? sessionProperties,
     String? pairingTopic,
     List<Relay>? relays,
+    List<List<String>>? methods = DEFAULT_METHODS,
   }) async {
     try {
       return await signEngine.connect(
@@ -188,6 +194,7 @@ class Web3App implements IWeb3App {
         sessionProperties: sessionProperties,
         pairingTopic: pairingTopic,
         relays: relays,
+        methods: methods,
       );
     } catch (e) {
       // print(e);
@@ -243,7 +250,7 @@ class Web3App implements IWeb3App {
   @override
   Future<void> disconnectSession({
     required String topic,
-    required WalletConnectErrorResponse reason,
+    required WalletConnectError reason,
   }) async {
     try {
       return await signEngine.disconnectSession(
@@ -259,6 +266,28 @@ class Web3App implements IWeb3App {
   Map<String, SessionData> getActiveSessions() {
     try {
       return signEngine.getActiveSessions();
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  @override
+  Map<String, SessionData> getSessionsForPairing({
+    required String pairingTopic,
+  }) {
+    try {
+      return signEngine.getSessionsForPairing(
+        pairingTopic: pairingTopic,
+      );
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  @override
+  Map<String, ProposalData> getPendingSessionProposals() {
+    try {
+      return signEngine.getPendingSessionProposals();
     } catch (e) {
       rethrow;
     }
@@ -286,10 +315,25 @@ class Web3App implements IWeb3App {
   Future<AuthRequestResponse> requestAuth({
     required AuthRequestParams params,
     String? pairingTopic,
+    List<List<String>>? methods = DEFAULT_METHODS,
   }) async {
     try {
       return authEngine.requestAuth(
         params: params,
+        pairingTopic: pairingTopic,
+        methods: methods,
+      );
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  @override
+  Map<int, StoredCacao> getCompletedRequestsForPairing({
+    required String pairingTopic,
+  }) {
+    try {
+      return authEngine.getCompletedRequestsForPairing(
         pairingTopic: pairingTopic,
       );
     } catch (e) {

@@ -1,11 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
-import 'package:walletconnect_dart_v2/apis/core/core.dart';
-import 'package:walletconnect_dart_v2/apis/core/i_core.dart';
-import 'package:walletconnect_dart_v2/apis/core/pairing/utils/pairing_models.dart';
-import 'package:walletconnect_dart_v2/apis/core/relay_client/relay_client.dart';
-import 'package:walletconnect_dart_v2/apis/core/relay_client/relay_client_models.dart';
-import 'package:walletconnect_dart_v2/apis/models/basic_models.dart';
+import 'package:walletconnect_flutter_v2/apis/core/core.dart';
+import 'package:walletconnect_flutter_v2/apis/core/i_core.dart';
+import 'package:walletconnect_flutter_v2/apis/core/pairing/utils/pairing_models.dart';
+import 'package:walletconnect_flutter_v2/apis/core/relay_client/relay_client.dart';
+import 'package:walletconnect_flutter_v2/apis/core/relay_client/relay_client_models.dart';
+import 'package:walletconnect_flutter_v2/apis/models/basic_models.dart';
 
 import '../shared/shared_test_values.dart';
 import 'shared/shared_test_utils.mocks.dart';
@@ -13,10 +15,6 @@ import 'shared/shared_test_utils.mocks.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  const TEST_PUB_KEY =
-      '9088c381b2022c6311d9b4738e221029ff4b8f3c13860a795c960eac043e7d28';
-  const TEST_PRIV_KEY =
-      'f24230adbb096e81f4a2a06450c206cafaf49dc6a60daf25d09e05c011e47ed2';
   const TEST_TOPIC = 'abc123';
   const TEST_MESSAGE = 'swagmasterss';
 
@@ -32,6 +30,61 @@ void main() {
         throwsA(isA<WalletConnectError>()),
       );
     });
+  });
+
+  test('Relay client connect and disconnect events broadcast', () async {
+    ICore coreA = Core(
+      projectId: TEST_PROJECT_ID,
+      memoryStore: true,
+    );
+    ICore coreB = Core(
+      projectId: TEST_PROJECT_ID,
+      memoryStore: true,
+    );
+
+    int counterA = 0, counterB = 0, counterC = 0, counterD = 0;
+    Completer completerA = Completer(),
+        completerB = Completer(),
+        completerC = Completer(),
+        completerD = Completer();
+    coreA.relayClient.onRelayClientConnect.subscribe((args) {
+      expect(args, null);
+      counterA++;
+      completerA.complete();
+    });
+    coreA.relayClient.onRelayClientDisconnect.subscribe((args) {
+      expect(args, null);
+      counterB++;
+      completerB.complete();
+    });
+    coreB.relayClient.onRelayClientConnect.subscribe((args) {
+      expect(args, null);
+      counterC++;
+      completerC.complete();
+    });
+    coreB.relayClient.onRelayClientDisconnect.subscribe((args) {
+      expect(args, null);
+      counterD++;
+      completerD.complete();
+    });
+
+    await coreA.start();
+    await coreB.start();
+
+    await completerA.future;
+    await completerC.future;
+
+    expect(counterA, 1);
+    expect(counterC, 1);
+
+    await coreA.relayClient.disconnect();
+    await coreB.relayClient.disconnect();
+
+    await completerB.future;
+    await completerD.future;
+
+    expect(counterB, 1);
+    expect(counterD, 1);
   });
 
   group('Relay Client', () {
@@ -120,6 +173,8 @@ void main() {
         await coreB.pairing.pair(uri: response.uri, activatePairing: true);
         coreA.pairing.activate(topic: response.topic);
 
+        Completer completerA = Completer();
+        Completer completerB = Completer();
         int counterA = 0;
         int counterB = 0;
         coreA.relayClient.onRelayClientMessage.subscribe((args) {
@@ -127,12 +182,14 @@ void main() {
           expect(args!.topic, response.topic);
           expect(args.message, 'Swag');
           counterA++;
+          completerA.complete();
         });
         coreB.relayClient.onRelayClientMessage.subscribe((args) {
           expect(args == null, false);
           expect(args!.topic, response.topic);
           expect(args.message, TEST_MESSAGE);
           counterB++;
+          completerB.complete();
         });
 
         // await coreA.relayClient.unsubscribe(response.topic);
@@ -151,7 +208,8 @@ void main() {
           tag: 0,
         );
 
-        await Future.delayed(Duration(milliseconds: 100));
+        await completerA.future;
+        await completerB.future;
 
         expect(counterA, 1);
         expect(counterB, 1);

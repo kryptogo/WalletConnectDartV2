@@ -1,10 +1,9 @@
 import 'dart:async';
 
 import 'package:json_annotation/json_annotation.dart';
-import 'package:walletconnect_dart_v2/apis/core/relay_client/relay_client_models.dart';
-import 'package:walletconnect_dart_v2/apis/models/basic_models.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/models/proposal_models.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/models/sign_client_models.dart';
+import 'package:walletconnect_flutter_v2/apis/core/relay_client/relay_client_models.dart';
+import 'package:walletconnect_flutter_v2/apis/models/basic_models.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/models/proposal_models.dart';
 
 part 'session_models.g.dart';
 
@@ -26,6 +25,11 @@ class SessionProposalCompleter {
     required this.completer,
     this.sessionProperties,
   });
+
+  @override
+  String toString() {
+    return 'SessionProposalCompleter(id: $id, selfPublicKey: $selfPublicKey, pairingTopic: $pairingTopic, requiredNamespaces: $requiredNamespaces, optionalNamespaces: $optionalNamespaces, sessionProperties: $sessionProperties, completer: $completer)';
+  }
 }
 
 @JsonSerializable()
@@ -44,6 +48,11 @@ class Namespace {
       _$NamespaceFromJson(json);
 
   Map<String, dynamic> toJson() => _$NamespaceToJson(this);
+
+  @override
+  String toString() {
+    return 'Namespace(accounts: $accounts, methods: $methods, events: $events)';
+  }
 
   @override
   bool operator ==(Object other) {
@@ -66,22 +75,24 @@ class Namespace {
       );
 }
 
-@JsonSerializable()
+@JsonSerializable(includeIfNull: false)
 class SessionData {
   final String topic;
+  final String pairingTopic;
   final Relay relay;
   int expiry;
   bool acknowledged;
   final String controller;
   Map<String, Namespace> namespaces;
-  final Map<String, RequiredNamespace> requiredNamespaces;
-  final Map<String, RequiredNamespace> optionalNamespaces;
+  final Map<String, RequiredNamespace>? requiredNamespaces;
+  final Map<String, RequiredNamespace>? optionalNamespaces;
   final Map<String, String>? sessionProperties;
   final ConnectionMetadata self;
   final ConnectionMetadata peer;
 
   SessionData({
     required this.topic,
+    required this.pairingTopic,
     required this.relay,
     required this.expiry,
     required this.acknowledged,
@@ -98,6 +109,11 @@ class SessionData {
       _$SessionDataFromJson(json);
 
   Map<String, dynamic> toJson() => _$SessionDataToJson(this);
+
+  @override
+  String toString() {
+    return 'SessionData(topic: $topic, pairingTopic: $pairingTopic, relay: $relay, expiry: $expiry, acknowledged: $acknowledged, controller: $controller, namespaces: $namespaces, requiredNamespaces: $requiredNamespaces, optionalNamespaces: $optionalNamespaces, sessionProperties: $sessionProperties, self: $self, peer: $peer)';
+  }
 }
 
 @JsonSerializable()
@@ -121,4 +137,9 @@ class SessionRequest {
       _$SessionRequestFromJson(json);
 
   Map<String, dynamic> toJson() => _$SessionRequestToJson(this);
+
+  @override
+  String toString() {
+    return 'SessionRequest(id: $id, topic: $topic, method: $method, chainId: $chainId, params: $params)';
+  }
 }

@@ -1,7 +1,7 @@
-import 'package:walletconnect_dart_v2/apis/core/i_core.dart';
-import 'package:walletconnect_dart_v2/apis/core/key_chain/i_key_chain.dart';
-import 'package:walletconnect_dart_v2/apis/utils/errors.dart';
-import 'package:walletconnect_dart_v2/apis/utils/walletconnect_utils.dart';
+import 'package:walletconnect_flutter_v2/apis/core/i_core.dart';
+import 'package:walletconnect_flutter_v2/apis/core/key_chain/i_key_chain.dart';
+import 'package:walletconnect_flutter_v2/apis/utils/errors.dart';
+import 'package:walletconnect_flutter_v2/apis/utils/walletconnect_utils.dart';
 
 class KeyChain implements IKeyChain {
   static const KEYCHAIN = 'keychain';
@@ -42,15 +42,12 @@ class KeyChain implements IKeyChain {
 
   /// Gets the key associated with the provided tag
   @override
-  String get(
+  String? get(
     String tag, {
     dynamic options,
   }) {
     _checkInitialized();
-    if (keyChain.containsKey(tag)) {
-      return keyChain[tag]!;
-    }
-    return '';
+    return keyChain[tag];
   }
 
   /// Sets the value with the given key

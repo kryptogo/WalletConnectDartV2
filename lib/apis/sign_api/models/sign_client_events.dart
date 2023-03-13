@@ -1,6 +1,6 @@
 import 'package:event/event.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/models/proposal_models.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/models/session_models.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/models/proposal_models.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/models/session_models.dart';
 
 class SessionProposalEvent extends EventArgs {
   int id;
@@ -52,10 +52,13 @@ class SessionPing extends EventArgs {
 }
 
 class SessionDelete extends EventArgs {
-  int id;
   String topic;
+  int? id;
 
-  SessionDelete(this.id, this.topic);
+  SessionDelete(
+    this.topic, {
+    this.id,
+  });
 }
 
 class SessionExpire extends EventArgs {

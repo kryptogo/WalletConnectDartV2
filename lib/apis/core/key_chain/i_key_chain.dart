@@ -1,4 +1,4 @@
-import 'package:walletconnect_dart_v2/apis/core/store/i_store_user.dart';
+import 'package:walletconnect_flutter_v2/apis/core/store/i_store_user.dart';
 
 abstract class IKeyChain extends IStoreUser {
   Future<void> init();
@@ -11,7 +11,7 @@ abstract class IKeyChain extends IStoreUser {
     String key, {
     dynamic options,
   });
-  String get(
+  String? get(
     String tag, {
     dynamic options,
   });

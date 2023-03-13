@@ -2,18 +2,18 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:convert/convert.dart';
-import 'package:walletconnect_dart_v2/apis/core/crypto/crypto_models.dart';
-import 'package:walletconnect_dart_v2/apis/core/crypto/crypto_utils.dart';
-import 'package:walletconnect_dart_v2/apis/core/i_core.dart';
-import 'package:walletconnect_dart_v2/apis/core/key_chain/key_chain.dart';
-import 'package:walletconnect_dart_v2/apis/core/crypto/i_crypto.dart';
-import 'package:walletconnect_dart_v2/apis/core/crypto/i_crypto_utils.dart';
-import 'package:walletconnect_dart_v2/apis/core/key_chain/i_key_chain.dart';
-import 'package:walletconnect_dart_v2/apis/core/relay_auth/i_relay_auth.dart';
-import 'package:walletconnect_dart_v2/apis/core/relay_auth/relay_auth.dart';
-import 'package:walletconnect_dart_v2/apis/core/relay_auth/relay_auth_models.dart';
-import 'package:walletconnect_dart_v2/apis/utils/constants.dart';
-import 'package:walletconnect_dart_v2/apis/utils/errors.dart';
+import 'package:walletconnect_flutter_v2/apis/core/crypto/crypto_models.dart';
+import 'package:walletconnect_flutter_v2/apis/core/crypto/crypto_utils.dart';
+import 'package:walletconnect_flutter_v2/apis/core/i_core.dart';
+import 'package:walletconnect_flutter_v2/apis/core/key_chain/key_chain.dart';
+import 'package:walletconnect_flutter_v2/apis/core/crypto/i_crypto.dart';
+import 'package:walletconnect_flutter_v2/apis/core/crypto/i_crypto_utils.dart';
+import 'package:walletconnect_flutter_v2/apis/core/key_chain/i_key_chain.dart';
+import 'package:walletconnect_flutter_v2/apis/core/relay_auth/i_relay_auth.dart';
+import 'package:walletconnect_flutter_v2/apis/core/relay_auth/relay_auth.dart';
+import 'package:walletconnect_flutter_v2/apis/core/relay_auth/relay_auth_models.dart';
+import 'package:walletconnect_flutter_v2/apis/utils/constants.dart';
+import 'package:walletconnect_flutter_v2/apis/utils/errors.dart';
 
 class Crypto implements ICrypto {
   static const CRYPTO_CONTEXT = 'crypto';
@@ -91,7 +91,7 @@ class Crypto implements ICrypto {
   }) async {
     _checkInitialized();
 
-    String privKey = _getPrivateKey(selfPublicKey);
+    String privKey = _getPrivateKey(selfPublicKey)!;
     String symKey = await utils!.deriveSymKey(privKey, peerPublicKey);
     return await setSymKey(symKey, overrideTopic: overrideTopic);
   }
@@ -123,7 +123,7 @@ class Crypto implements ICrypto {
   }
 
   @override
-  Future<String> encode(
+  Future<String?> encode(
     String topic,
     Map<String, dynamic> payload, {
     EncodeOptions? options,
@@ -149,7 +149,11 @@ class Crypto implements ICrypto {
       topic = await generateSharedKey(selfPublicKey, peerPublicKey);
     }
 
-    final String symKey = _getSymKey(topic);
+    final String? symKey = _getSymKey(topic);
+    if (symKey == null) {
+      return null;
+    }
+
     final String result = await utils!.encrypt(
       message,
       symKey,
@@ -161,7 +165,7 @@ class Crypto implements ICrypto {
   }
 
   @override
-  Future<String> decode(
+  Future<String?> decode(
     String topic,
     String encoded, {
     DecodeOptions? options,
@@ -185,7 +189,11 @@ class Crypto implements ICrypto {
       final String peerPublicKey = params.senderPublicKey!;
       topic = await generateSharedKey(selfPublicKey, peerPublicKey);
     }
-    final String symKey = _getSymKey(topic);
+    final String? symKey = _getSymKey(topic);
+    if (symKey == null) {
+      return null;
+    }
+
     final String message = await utils!.decrypt(symKey, encoded);
 
     return message;
@@ -220,11 +228,11 @@ class Crypto implements ICrypto {
     return keyPair.publicKey;
   }
 
-  String _getPrivateKey(String publicKey) {
+  String? _getPrivateKey(String publicKey) {
     return keyChain!.get(publicKey);
   }
 
-  String _getSymKey(String topic) {
+  String? _getSymKey(String topic) {
     // print('crypto getSymKey: $topic');
     return keyChain!.get(topic);
   }
@@ -243,8 +251,8 @@ class Crypto implements ICrypto {
   // }
 
   Future<Uint8List> _getClientSeed() async {
-    String seed = keyChain!.get(CLIENT_SEED);
-    if (seed == '') {
+    String? seed = keyChain!.get(CLIENT_SEED);
+    if (seed == null) {
       seed = utils!.generateRandomBytes32();
       await keyChain!.set(CLIENT_SEED, seed);
     }

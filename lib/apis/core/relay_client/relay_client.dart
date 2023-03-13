@@ -2,17 +2,17 @@ import 'dart:async';
 
 import 'package:event/event.dart';
 import 'package:json_rpc_2/json_rpc_2.dart';
-import 'package:walletconnect_dart_v2/apis/core/i_core.dart';
-import 'package:walletconnect_dart_v2/apis/core/relay_client/i_message_tracker.dart';
-import 'package:walletconnect_dart_v2/apis/core/relay_client/i_relay_client.dart';
-import 'package:walletconnect_dart_v2/apis/core/relay_client/i_topic_map.dart';
-import 'package:walletconnect_dart_v2/apis/core/relay_client/message_tracker.dart';
-import 'package:walletconnect_dart_v2/apis/core/relay_client/relay_client_models.dart';
-import 'package:walletconnect_dart_v2/apis/core/relay_client/topic_map.dart';
-import 'package:walletconnect_dart_v2/apis/models/basic_models.dart';
-import 'package:walletconnect_dart_v2/apis/utils/constants.dart';
-import 'package:walletconnect_dart_v2/apis/utils/errors.dart';
-import 'package:walletconnect_dart_v2/apis/utils/walletconnect_utils.dart';
+import 'package:walletconnect_flutter_v2/apis/core/i_core.dart';
+import 'package:walletconnect_flutter_v2/apis/core/relay_client/i_message_tracker.dart';
+import 'package:walletconnect_flutter_v2/apis/core/relay_client/i_relay_client.dart';
+import 'package:walletconnect_flutter_v2/apis/core/relay_client/i_topic_map.dart';
+import 'package:walletconnect_flutter_v2/apis/core/relay_client/message_tracker.dart';
+import 'package:walletconnect_flutter_v2/apis/core/relay_client/relay_client_models.dart';
+import 'package:walletconnect_flutter_v2/apis/core/relay_client/topic_map.dart';
+import 'package:walletconnect_flutter_v2/apis/models/basic_models.dart';
+import 'package:walletconnect_flutter_v2/apis/utils/constants.dart';
+import 'package:walletconnect_flutter_v2/apis/utils/errors.dart';
+import 'package:walletconnect_flutter_v2/apis/utils/walletconnect_utils.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 class RelayClient implements IRelayClient {
@@ -80,10 +80,7 @@ class RelayClient implements IRelayClient {
 
     // Setup the json RPC server
     jsonRPC = await _createJsonRPCProvider();
-    // jsonRPC.registerMethod(
-    //   _buildMethod(JSON_RPC_PUBLISH),
-    //   _handlePublish,
-    // );
+
     jsonRPC.registerMethod(
       _buildMethod(JSON_RPC_SUBSCRIPTION),
       _handleSubscription,
@@ -98,11 +95,6 @@ class RelayClient implements IRelayClient {
     );
     jsonRPC.listen();
 
-    // Initialize all of our stores
-    // if (test) {
-    //   _initialized = true;
-    //   return;
-    // }
     messageTracker ??= MessageTracker(core);
     topicMap ??= TopicMap(core);
 
@@ -129,7 +121,7 @@ class RelayClient implements IRelayClient {
     };
 
     try {
-      var value = await jsonRPC.sendRequest(
+      var _ = await jsonRPC.sendRequest(
         _buildMethod(JSON_RPC_PUBLISH),
         data,
       );
@@ -181,7 +173,24 @@ class RelayClient implements IRelayClient {
   Future<void> connect({String? relayUrl}) async {
     _checkInitialized();
 
+    if (!jsonRPC.isClosed) {
+      return;
+    }
+
     jsonRPC = await _createJsonRPCProvider();
+    jsonRPC.registerMethod(
+      _buildMethod(JSON_RPC_SUBSCRIPTION),
+      _handleSubscription,
+    );
+    jsonRPC.registerMethod(
+      _buildMethod(JSON_RPC_SUBSCRIBE),
+      _handleSubscribe,
+    );
+    jsonRPC.registerMethod(
+      _buildMethod(JSON_RPC_UNSUBSCRIBE),
+      _handleUnsubscribe,
+    );
+    jsonRPC.listen();
   }
 
   @override
@@ -193,11 +202,6 @@ class RelayClient implements IRelayClient {
   /// PRIVATE FUNCTIONS ///
 
   Future<Peer> _createJsonRPCProvider() async {
-    // if (test) {
-    //   StreamController<String> data = StreamController.broadcast();
-    //   return Peer(StreamChannel(data.stream, data.sink));
-    // }
-
     var auth = await core.crypto.signJWT(core.relayUrl);
     try {
       socket = WebSocketChannel.connect(
@@ -215,7 +219,14 @@ class RelayClient implements IRelayClient {
 
       await socket.ready;
 
-      return Peer(socket.cast<String>());
+      onRelayClientConnect.broadcast();
+
+      final Peer p = Peer(socket.cast<String>());
+
+      // When p closes, emit the event
+      p.done.then((value) => onRelayClientDisconnect.broadcast());
+
+      return p;
     } catch (e) {
       onRelayClientError.broadcast(ErrorEvent(e));
       throw WalletConnectError(

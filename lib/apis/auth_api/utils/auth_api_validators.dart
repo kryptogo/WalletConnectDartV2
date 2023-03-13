@@ -1,6 +1,6 @@
-import 'package:walletconnect_dart_v2/apis/auth_api/utils/auth_constants.dart';
-import 'package:walletconnect_dart_v2/apis/utils/namespace_utils.dart';
-import 'package:walletconnect_dart_v2/walletconnect_dart_v2.dart';
+import 'package:walletconnect_flutter_v2/apis/auth_api/utils/auth_constants.dart';
+import 'package:walletconnect_flutter_v2/apis/utils/namespace_utils.dart';
+import 'package:walletconnect_flutter_v2/walletconnect_flutter_v2.dart';
 
 class AuthApiValidators {
   static bool isValidRequestExpiry(int expiry) {
@@ -16,7 +16,7 @@ class AuthApiValidators {
             'requestAuth() invalid aud: ${params.aud}. Must be a valid url.',
       );
     }
-    final validChainId = true; //NamespaceUtils.isValidChainId(params.chainId);
+    // final validChainId = true; //NamespaceUtils.isValidChainId(params.chainId);
 
     if (!params.aud.contains(params.domain)) {
       throw Errors.getInternalError(
@@ -57,7 +57,7 @@ class AuthApiValidators {
     required int id,
     required Map<int, PendingAuthRequest> pendingRequests,
     CacaoSignature? signature,
-    WalletConnectErrorResponse? error,
+    WalletConnectError? error,
   }) {
     if (!pendingRequests.containsKey(id)) {
       throw Errors.getInternalError(

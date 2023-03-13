@@ -1,10 +1,10 @@
 import 'package:json_annotation/json_annotation.dart';
-import 'package:walletconnect_dart_v2/apis/core/relay_client/relay_client_models.dart';
-import 'package:walletconnect_dart_v2/apis/models/basic_models.dart';
+import 'package:walletconnect_flutter_v2/apis/core/relay_client/relay_client_models.dart';
+import 'package:walletconnect_flutter_v2/apis/models/basic_models.dart';
 
 part 'proposal_models.g.dart';
 
-@JsonSerializable()
+@JsonSerializable(includeIfNull: false)
 class RequiredNamespace {
   final List<String>? chains;
   final List<String> methods;
@@ -53,9 +53,14 @@ class SessionProposal {
     required this.id,
     required this.params,
   });
+
+  factory SessionProposal.fromJson(Map<String, dynamic> json) =>
+      _$SessionProposalFromJson(json);
+
+  Map<String, dynamic> toJson() => _$SessionProposalToJson(this);
 }
 
-@JsonSerializable()
+@JsonSerializable(includeIfNull: false)
 class ProposalData {
   final int id;
   final int expiry;
@@ -64,7 +69,7 @@ class ProposalData {
   final Map<String, RequiredNamespace> requiredNamespaces;
   final Map<String, RequiredNamespace> optionalNamespaces;
   final Map<String, String>? sessionProperties;
-  final String? pairingTopic;
+  final String pairingTopic;
 
   const ProposalData({
     required this.id,
@@ -73,8 +78,8 @@ class ProposalData {
     required this.proposer,
     required this.requiredNamespaces,
     required this.optionalNamespaces,
+    required this.pairingTopic,
     this.sessionProperties,
-    this.pairingTopic,
   });
 
   factory ProposalData.fromJson(Map<String, dynamic> json) =>

@@ -1,12 +1,13 @@
 import 'package:event/event.dart';
-import 'package:walletconnect_dart_v2/apis/core/store/i_generic_store.dart';
-import 'package:walletconnect_dart_v2/apis/core/crypto/crypto_models.dart';
-import 'package:walletconnect_dart_v2/apis/core/pairing/i_pairing_store.dart';
-import 'package:walletconnect_dart_v2/apis/core/pairing/utils/pairing_models.dart';
-import 'package:walletconnect_dart_v2/apis/models/json_rpc_error.dart';
-import 'package:walletconnect_dart_v2/apis/models/json_rpc_request.dart';
+import 'package:walletconnect_flutter_v2/apis/core/crypto/crypto_models.dart';
+import 'package:walletconnect_flutter_v2/apis/core/pairing/i_pairing_store.dart';
+import 'package:walletconnect_flutter_v2/apis/core/pairing/utils/pairing_models.dart';
+import 'package:walletconnect_flutter_v2/apis/models/json_rpc_error.dart';
+import 'package:walletconnect_flutter_v2/apis/models/json_rpc_request.dart';
 
 abstract class IPairing {
+  abstract final Event<PairingEvent> onPairingCreate;
+  abstract final Event<PairingActivateEvent> onPairingActivate;
   abstract final Event<PairingEvent> onPairingPing;
   abstract final Event<PairingInvalidEvent> onPairingInvalid;
   abstract final Event<PairingEvent> onPairingDelete;
@@ -17,7 +18,9 @@ abstract class IPairing {
     required Uri uri,
     bool activatePairing,
   });
-  Future<CreateResponse> create({List<List<String>> methods});
+  Future<CreateResponse> create({
+    List<List<String>>? methods,
+  });
   Future<void> activate({required String topic});
   void register({
     required String method,

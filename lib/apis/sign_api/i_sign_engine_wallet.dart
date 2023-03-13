@@ -1,17 +1,13 @@
 import 'package:event/event.dart';
-import 'package:walletconnect_dart_v2/apis/core/store/i_generic_store.dart';
-import 'package:walletconnect_dart_v2/apis/core/i_core.dart';
-import 'package:walletconnect_dart_v2/apis/core/pairing/i_pairing_store.dart';
-import 'package:walletconnect_dart_v2/apis/core/pairing/utils/pairing_models.dart';
-import 'package:walletconnect_dart_v2/apis/models/basic_models.dart';
-import 'package:walletconnect_dart_v2/apis/models/json_rpc_response.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/i_sessions.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/i_sign_engine_common.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/models/json_rpc_models.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/models/proposal_models.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/models/session_models.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/models/sign_client_events.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/models/sign_client_models.dart';
+import 'package:walletconnect_flutter_v2/apis/core/pairing/utils/pairing_models.dart';
+import 'package:walletconnect_flutter_v2/apis/models/basic_models.dart';
+import 'package:walletconnect_flutter_v2/apis/models/json_rpc_response.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/i_sign_engine_common.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/models/json_rpc_models.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/models/proposal_models.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/models/session_models.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/models/sign_client_events.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/models/sign_client_models.dart';
 
 abstract class ISignEngineWallet extends ISignEngineCommon {
   abstract final Event<SessionProposalEvent> onSessionProposal;
@@ -27,7 +23,7 @@ abstract class ISignEngineWallet extends ISignEngineCommon {
   });
   Future<void> rejectSession({
     required int id,
-    required WalletConnectErrorResponse reason,
+    required WalletConnectError reason,
   });
   Future<void> updateSession({
     required String topic,
@@ -53,6 +49,5 @@ abstract class ISignEngineWallet extends ISignEngineCommon {
   SessionData? find({
     required Map<String, RequiredNamespace> requiredNamespaces,
   });
-  Map<String, ProposalData> getPendingSessionProposals();
   Map<String, SessionRequest> getPendingSessionRequests();
 }

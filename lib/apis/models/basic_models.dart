@@ -1,40 +1,43 @@
 import 'package:json_annotation/json_annotation.dart';
-import 'package:walletconnect_dart_v2/apis/core/pairing/utils/pairing_models.dart';
+import 'package:walletconnect_flutter_v2/apis/core/pairing/utils/pairing_models.dart';
 
 part 'basic_models.g.dart';
 
 /// ERRORS
 
-@JsonSerializable()
+@JsonSerializable(includeIfNull: false)
 class WalletConnectError {
   int code;
   String message;
+  String? data;
 
   WalletConnectError({
     required this.code,
     required this.message,
-  });
-
-  factory WalletConnectError.fromJson(Map<String, dynamic> json) =>
-      _$WCErrorFromJson(json);
-
-  Map<String, dynamic> toJson() => _$WCErrorToJson(this);
-}
-
-@JsonSerializable()
-class WalletConnectErrorResponse extends WalletConnectError {
-  String? data;
-
-  WalletConnectErrorResponse({
-    required super.code,
-    required super.message,
     this.data,
   });
 
-  factory WalletConnectErrorResponse.fromJson(Map<String, dynamic> json) =>
-      _$WCErrorResponseFromJson(json);
+  WalletConnectError copyWith({
+    int? code,
+    String? message,
+    String? data,
+  }) {
+    return WalletConnectError(
+      code: code ?? this.code,
+      message: message ?? this.message,
+      data: data ?? this.data,
+    );
+  }
 
-  Map<String, dynamic> toJson() => _$WCErrorResponseToJson(this);
+  factory WalletConnectError.fromJson(Map<String, dynamic> json) =>
+      _$WalletConnectErrorFromJson(json);
+
+  Map<String, dynamic> toJson() => _$WalletConnectErrorToJson(this);
+
+  @override
+  String toString() {
+    return 'WalletConnectError(code: $code, message: $message, data: $data)';
+  }
 }
 
 class RpcOptions {
@@ -58,6 +61,11 @@ class RpcOptions {
       prompt ?? this.prompt,
       tag ?? this.tag,
     );
+  }
+
+  @override
+  String toString() {
+    return 'RpcOptions(ttl: $ttl, prompt: $prompt, tag: $tag)';
   }
 }
 
@@ -83,4 +91,9 @@ class ConnectionMetadata {
 
   @override
   int get hashCode => publicKey.hashCode + metadata.hashCode;
+
+  @override
+  String toString() {
+    return 'ConnectionMetadata(publicKey: $publicKey, metadata: $metadata)';
+  }
 }

@@ -1,9 +1,9 @@
 import 'dart:convert';
 
 import 'package:universal_io/io.dart';
-import 'package:walletconnect_dart_v2/apis/core/relay_client/relay_client_models.dart';
-import 'package:walletconnect_dart_v2/apis/models/basic_models.dart';
-import 'package:walletconnect_dart_v2/apis/models/uri_parse_result.dart';
+import 'package:walletconnect_flutter_v2/apis/core/relay_client/relay_client_models.dart';
+import 'package:walletconnect_flutter_v2/apis/models/basic_models.dart';
+import 'package:walletconnect_flutter_v2/apis/models/uri_parse_result.dart';
 
 class WalletConnectUtils {
   static bool isExpired(int expiry) {
@@ -84,7 +84,7 @@ class WalletConnectUtils {
         message: 'Invalid URI: Missing @',
       );
     }
-    List<String> methods = uri.queryParameters['methods']!
+    List<String> methods = (uri.queryParameters['methods'] ?? '')
         // Replace all the square brackets with empty string, split by comma
         .replaceAll(
           RegExp(r'[\[\]"]+'),
@@ -131,11 +131,23 @@ class WalletConnectUtils {
     required String topic,
     required String symKey,
     required Relay relay,
-    required List<List<String>> methods,
+    required List<List<String>>? methods,
   }) {
     Map<String, String> params = formatRelayParams(relay);
     params['symKey'] = symKey;
-    params['methods'] = methods.map((e) => jsonEncode(e)).join(',');
+    if (methods != null) {
+      params['methods'] = methods
+          .map((e) => jsonEncode(e))
+          .join(
+            ',',
+          )
+          .replaceAll(
+            '"',
+            '',
+          );
+    } else {
+      params['methods'] = '[]';
+    }
 
     return Uri(
       scheme: protocol,

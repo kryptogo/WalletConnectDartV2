@@ -1,24 +1,28 @@
-import 'dart:convert';
-
 import 'package:event/event.dart';
-import 'package:walletconnect_dart_v2/apis/auth_api/auth_engine.dart';
-import 'package:walletconnect_dart_v2/apis/auth_api/utils/auth_constants.dart';
-import 'package:walletconnect_dart_v2/apis/core/store/generic_store.dart';
-import 'package:walletconnect_dart_v2/apis/core/store/i_generic_store.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/i_sessions.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/sign_engine.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/utils/sign_constants.dart';
-import 'package:walletconnect_dart_v2/walletconnect_dart_v2.dart';
+import 'package:walletconnect_flutter_v2/apis/auth_api/auth_engine.dart';
+import 'package:walletconnect_flutter_v2/apis/auth_api/utils/auth_constants.dart';
+import 'package:walletconnect_flutter_v2/apis/core/store/generic_store.dart';
+import 'package:walletconnect_flutter_v2/apis/core/store/i_generic_store.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/i_sessions.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/sign_engine.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/utils/sign_constants.dart';
+import 'package:walletconnect_flutter_v2/walletconnect_flutter_v2.dart';
 
 class Web3Wallet implements IWeb3Wallet {
   bool _initialized = false;
 
   static Future<Web3Wallet> createInstance({
-    required ICore core,
+    required String projectId,
+    String relayUrl = WalletConnectConstants.DEFAULT_RELAY_URL,
     required PairingMetadata metadata,
+    bool memoryStore = false,
   }) async {
     final client = Web3Wallet(
-      core: core,
+      core: Core(
+        projectId: projectId,
+        relayUrl: relayUrl,
+        memoryStore: memoryStore,
+      ),
       metadata: metadata,
     );
     await client.init();
@@ -49,11 +53,11 @@ class Web3Wallet implements IWeb3Wallet {
         core: core,
         context: SignConstants.CONTEXT_PROPOSALS,
         version: SignConstants.VERSION_PROPOSALS,
-        toJsonString: (ProposalData value) {
-          return jsonEncode(value.toJson());
+        toJson: (ProposalData value) {
+          return value.toJson();
         },
-        fromJsonString: (String value) {
-          return ProposalData.fromJson(jsonDecode(value));
+        fromJson: (dynamic value) {
+          return ProposalData.fromJson(value);
         },
       ),
       sessions: Sessions(core),
@@ -61,11 +65,11 @@ class Web3Wallet implements IWeb3Wallet {
         core: core,
         context: SignConstants.CONTEXT_PENDING_REQUESTS,
         version: SignConstants.VERSION_PENDING_REQUESTS,
-        toJsonString: (SessionRequest value) {
-          return jsonEncode(value.toJson());
+        toJson: (SessionRequest value) {
+          return value.toJson();
         },
-        fromJsonString: (String value) {
-          return SessionRequest.fromJson(jsonDecode(value));
+        fromJson: (dynamic value) {
+          return SessionRequest.fromJson(value);
         },
       ),
     );
@@ -77,21 +81,21 @@ class Web3Wallet implements IWeb3Wallet {
         core: core,
         context: AuthConstants.CONTEXT_AUTH_KEYS,
         version: AuthConstants.VERSION_AUTH_KEYS,
-        toJsonString: (AuthPublicKey value) {
-          return jsonEncode(value.toJson());
+        toJson: (AuthPublicKey value) {
+          return value.toJson();
         },
-        fromJsonString: (String value) {
-          return AuthPublicKey.fromJson(jsonDecode(value));
+        fromJson: (dynamic value) {
+          return AuthPublicKey.fromJson(value);
         },
       ),
       pairingTopics: GenericStore(
         core: core,
         context: AuthConstants.CONTEXT_PAIRING_TOPICS,
         version: AuthConstants.VERSION_PAIRING_TOPICS,
-        toJsonString: (String value) {
+        toJson: (String value) {
           return value;
         },
-        fromJsonString: (String value) {
+        fromJson: (dynamic value) {
           return value;
         },
       ),
@@ -99,22 +103,22 @@ class Web3Wallet implements IWeb3Wallet {
         core: core,
         context: AuthConstants.CONTEXT_AUTH_REQUESTS,
         version: AuthConstants.VERSION_AUTH_REQUESTS,
-        toJsonString: (PendingAuthRequest value) {
-          return jsonEncode(value.toJson());
+        toJson: (PendingAuthRequest value) {
+          return value.toJson();
         },
-        fromJsonString: (String value) {
-          return PendingAuthRequest.fromJson(jsonDecode(value));
+        fromJson: (dynamic value) {
+          return PendingAuthRequest.fromJson(value);
         },
       ),
       completeRequests: GenericStore(
         core: core,
         context: AuthConstants.CONTEXT_COMPLETE_REQUESTS,
         version: AuthConstants.VERSION_COMPLETE_REQUESTS,
-        toJsonString: (StoredCacao value) {
-          return jsonEncode(value.toJson());
+        toJson: (StoredCacao value) {
+          return value.toJson();
         },
-        fromJsonString: (String value) {
-          return StoredCacao.fromJson(jsonDecode(value));
+        fromJson: (dynamic value) {
+          return StoredCacao.fromJson(value);
         },
       ),
     );
@@ -147,13 +151,22 @@ class Web3Wallet implements IWeb3Wallet {
   ///---------- SIGN ENGINE ----------///
 
   @override
+  Event<SessionConnect> get onSessionConnect => signEngine.onSessionConnect;
+  @override
   Event<SessionDelete> get onSessionDelete => signEngine.onSessionDelete;
+  @override
+  Event<SessionExpire> get onSessionExpire => signEngine.onSessionExpire;
   @override
   Event<SessionProposalEvent> get onSessionProposal =>
       signEngine.onSessionProposal;
   @override
+  Event<SessionProposalEvent> get onProposalExpire =>
+      signEngine.onProposalExpire;
+  @override
   Event<SessionRequestEvent> get onSessionRequest =>
       signEngine.onSessionRequest;
+  @override
+  Event<SessionPing> get onSessionPing => signEngine.onSessionPing;
 
   @override
   IGenericStore<ProposalData> get proposals => signEngine.proposals;
@@ -186,7 +199,7 @@ class Web3Wallet implements IWeb3Wallet {
   @override
   Future<void> rejectSession({
     required int id,
-    required WalletConnectErrorResponse reason,
+    required WalletConnectError reason,
   }) async {
     try {
       return await signEngine.rejectSession(
@@ -229,7 +242,7 @@ class Web3Wallet implements IWeb3Wallet {
   void registerRequestHandler({
     required String chainId,
     required String method,
-    void Function(String, dynamic)? handler,
+    dynamic Function(String, dynamic)? handler,
   }) {
     try {
       return signEngine.registerRequestHandler(
@@ -277,7 +290,7 @@ class Web3Wallet implements IWeb3Wallet {
   @override
   Future<void> disconnectSession({
     required String topic,
-    required WalletConnectErrorResponse reason,
+    required WalletConnectError reason,
   }) async {
     try {
       return await signEngine.disconnectSession(
@@ -304,6 +317,19 @@ class Web3Wallet implements IWeb3Wallet {
   Map<String, SessionData> getActiveSessions() {
     try {
       return signEngine.getActiveSessions();
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  @override
+  Map<String, SessionData> getSessionsForPairing({
+    required String pairingTopic,
+  }) {
+    try {
+      return signEngine.getSessionsForPairing(
+        pairingTopic: pairingTopic,
+      );
     } catch (e) {
       rethrow;
     }
@@ -352,7 +378,7 @@ class Web3Wallet implements IWeb3Wallet {
     required int id,
     required String iss,
     CacaoSignature? signature,
-    WalletConnectErrorResponse? error,
+    WalletConnectError? error,
   }) async {
     try {
       return authEngine.respondAuthRequest(
@@ -370,6 +396,19 @@ class Web3Wallet implements IWeb3Wallet {
   Map<int, PendingAuthRequest> getPendingAuthRequests() {
     try {
       return authEngine.getPendingAuthRequests();
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  @override
+  Map<int, StoredCacao> getCompletedRequestsForPairing({
+    required String pairingTopic,
+  }) {
+    try {
+      return authEngine.getCompletedRequestsForPairing(
+        pairingTopic: pairingTopic,
+      );
     } catch (e) {
       rethrow;
     }

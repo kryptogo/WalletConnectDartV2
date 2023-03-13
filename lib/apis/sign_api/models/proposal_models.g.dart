@@ -16,12 +16,20 @@ RequiredNamespace _$RequiredNamespaceFromJson(Map<String, dynamic> json) =>
           (json['events'] as List<dynamic>).map((e) => e as String).toList(),
     );
 
-Map<String, dynamic> _$RequiredNamespaceToJson(RequiredNamespace instance) =>
-    <String, dynamic>{
-      'chains': instance.chains,
-      'methods': instance.methods,
-      'events': instance.events,
-    };
+Map<String, dynamic> _$RequiredNamespaceToJson(RequiredNamespace instance) {
+  final val = <String, dynamic>{};
+
+  void writeNotNull(String key, dynamic value) {
+    if (value != null) {
+      val[key] = value;
+    }
+  }
+
+  writeNotNull('chains', instance.chains);
+  val['methods'] = instance.methods;
+  val['events'] = instance.events;
+  return val;
+}
 
 SessionProposal _$SessionProposalFromJson(Map<String, dynamic> json) =>
     SessionProposal(
@@ -53,21 +61,30 @@ ProposalData _$ProposalDataFromJson(Map<String, dynamic> json) => ProposalData(
         (k, e) =>
             MapEntry(k, RequiredNamespace.fromJson(e as Map<String, dynamic>)),
       ),
+      pairingTopic: json['pairingTopic'] as String,
       sessionProperties:
           (json['sessionProperties'] as Map<String, dynamic>?)?.map(
         (k, e) => MapEntry(k, e as String),
       ),
-      pairingTopic: json['pairingTopic'] as String?,
     );
 
-Map<String, dynamic> _$ProposalDataToJson(ProposalData instance) =>
-    <String, dynamic>{
-      'id': instance.id,
-      'expiry': instance.expiry,
-      'relays': instance.relays,
-      'proposer': instance.proposer,
-      'requiredNamespaces': instance.requiredNamespaces,
-      'optionalNamespaces': instance.optionalNamespaces,
-      'sessionProperties': instance.sessionProperties,
-      'pairingTopic': instance.pairingTopic,
-    };
+Map<String, dynamic> _$ProposalDataToJson(ProposalData instance) {
+  final val = <String, dynamic>{
+    'id': instance.id,
+    'expiry': instance.expiry,
+    'relays': instance.relays,
+    'proposer': instance.proposer,
+    'requiredNamespaces': instance.requiredNamespaces,
+    'optionalNamespaces': instance.optionalNamespaces,
+  };
+
+  void writeNotNull(String key, dynamic value) {
+    if (value != null) {
+      val[key] = value;
+    }
+  }
+
+  writeNotNull('sessionProperties', instance.sessionProperties);
+  val['pairingTopic'] = instance.pairingTopic;
+  return val;
+}

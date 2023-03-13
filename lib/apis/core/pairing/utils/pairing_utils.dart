@@ -1,13 +1,13 @@
 import 'dart:math';
 
-import 'package:walletconnect_dart_v2/apis/core/pairing/utils/pairing_models.dart';
-import 'package:walletconnect_dart_v2/apis/models/json_rpc_error.dart';
-import 'package:walletconnect_dart_v2/apis/utils/errors.dart';
+import 'package:walletconnect_flutter_v2/apis/core/pairing/utils/pairing_models.dart';
+import 'package:walletconnect_flutter_v2/apis/models/json_rpc_error.dart';
+import 'package:walletconnect_flutter_v2/apis/utils/errors.dart';
 
 class PairingUtils {
   static int payloadId() {
-    int date = DateTime.now().millisecondsSinceEpoch;
-    int extra = Random().nextInt(1000) * 1000;
+    int date = DateTime.now().millisecondsSinceEpoch * 1000;
+    int extra = (Random().nextDouble() * 1000).floor();
     return date + extra;
   }
 
@@ -17,7 +17,7 @@ class PairingUtils {
     int? id,
   }) {
     return {
-      'id': id == null ? payloadId() : id,
+      'id': id ??= payloadId(),
       'jsonrpc': '2.0',
       'method': method,
       'params': params,

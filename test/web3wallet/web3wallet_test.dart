@@ -1,25 +1,26 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/i_sign_engine_wallet.dart';
-import 'package:walletconnect_dart_v2/walletconnect_dart_v2.dart';
+import 'package:walletconnect_flutter_v2/walletconnect_flutter_v2.dart';
 
 import '../shared/shared_test_values.dart';
-import '../shared/sign_client_helpers.dart';
 import 'web3wallet_helpers.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  final List<Future<IWeb3App> Function(ICore, PairingMetadata)> appCreators = [
-    (ICore core, PairingMetadata metadata) async =>
-        await Web3App.createInstance(
-          core: core,
+  final List<Future<IWeb3App> Function(PairingMetadata)> appCreators = [
+    (PairingMetadata metadata) async => await Web3App.createInstance(
+          projectId: TEST_PROJECT_ID,
+          relayUrl: TEST_RELAY_URL,
+          memoryStore: true,
           metadata: metadata,
         ),
   ];
-  final List<Future<IWeb3Wallet> Function(ICore, PairingMetadata)>
-      walletCreators = [
-    (ICore core, PairingMetadata metadata) async =>
-        await Web3Wallet.createInstance(
-          core: core,
+  final List<Future<IWeb3Wallet> Function(PairingMetadata)> walletCreators = [
+    (PairingMetadata metadata) async => await Web3Wallet.createInstance(
+          projectId: TEST_PROJECT_ID,
+          relayUrl: TEST_RELAY_URL,
+          memoryStore: true,
           metadata: metadata,
         ),
   ];
@@ -37,9 +38,8 @@ void main() {
 
 void runTests({
   required String context,
-  required Future<IWeb3App> Function(ICore, PairingMetadata) web3appCreator,
-  required Future<IWeb3Wallet> Function(ICore, PairingMetadata)
-      web3walletCreator,
+  required Future<IWeb3App> Function(PairingMetadata) web3appCreator,
+  required Future<IWeb3Wallet> Function(PairingMetadata) web3walletCreator,
 }) {
   group(context, () {
     late IWeb3App clientA;
@@ -47,11 +47,6 @@ void runTests({
 
     setUp(() async {
       clientA = await web3appCreator(
-        Core(
-          relayUrl: TEST_RELAY_URL,
-          projectId: TEST_PROJECT_ID,
-          memoryStore: true,
-        ),
         PairingMetadata(
           name: 'App A (Proposer, dapp)',
           description: 'Description of Proposer App run by client A',
@@ -60,11 +55,6 @@ void runTests({
         ),
       );
       clientB = await web3walletCreator(
-        Core(
-          relayUrl: TEST_RELAY_URL,
-          projectId: TEST_PROJECT_ID,
-          memoryStore: true,
-        ),
         PairingMetadata(
           name: 'App B (Responder, Wallet)',
           description: 'Description of Proposer App run by client B',
@@ -81,17 +71,23 @@ void runTests({
 
     group('happy path', () {
       test('connects, reconnects, and emits proper events', () async {
+        Completer completer = Completer();
+        Completer completerBSign = Completer();
+        Completer completerBAuth = Completer();
         int counterA = 0;
         int counterBSign = 0;
         int counterBAuth = 0;
         clientA.onSessionConnect.subscribe((args) {
           counterA++;
+          completer.complete();
         });
         clientB.onSessionProposal.subscribe((args) {
           counterBSign++;
+          completerBSign.complete();
         });
         clientB.onAuthRequest.subscribe((args) {
           counterBAuth++;
+          completerBAuth.complete();
         });
 
         final connectionInfo = await Web3WalletHelpers.testWeb3Wallet(
@@ -99,7 +95,9 @@ void runTests({
           clientB,
         );
 
-        await Future.delayed(Duration(milliseconds: 100));
+        await completer.future;
+        await completerBSign.future;
+        await completerBAuth.future;
 
         expect(counterA, 1);
         expect(counterBSign, 1);
@@ -117,13 +115,20 @@ void runTests({
           clientA.getActiveSessions().length,
           clientB.getActiveSessions().length,
         );
-        final connectionInfo2 = await Web3WalletHelpers.testWeb3Wallet(
+
+        completer = Completer();
+        completerBSign = Completer();
+        completerBAuth = Completer();
+
+        final _ = await Web3WalletHelpers.testWeb3Wallet(
           clientA,
           clientB,
           pairingTopic: connectionInfo.pairing.topic,
         );
 
-        await Future.delayed(Duration(milliseconds: 100));
+        await completer.future;
+        await completerBSign.future;
+        await completerBAuth.future;
 
         expect(counterA, 2);
         expect(counterBSign, 2);
@@ -143,7 +148,7 @@ void runTests({
           clientA.pairings.getAll().length,
           clientB.pairings.getAll().length,
         );
-        final connectionInfo2 = await Web3WalletHelpers.testWeb3Wallet(
+        final _ = await Web3WalletHelpers.testWeb3Wallet(
           clientA,
           clientB,
           pairingTopic: connectionInfo.pairing.topic,

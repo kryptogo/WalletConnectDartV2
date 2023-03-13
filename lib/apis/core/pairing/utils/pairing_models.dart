@@ -1,9 +1,8 @@
 import 'package:event/event.dart';
 import 'package:json_annotation/json_annotation.dart';
-import 'package:walletconnect_dart_v2/apis/core/pairing/i_pairing.dart';
-import 'package:walletconnect_dart_v2/apis/core/relay_client/relay_client_models.dart';
-import 'package:walletconnect_dart_v2/apis/models/json_rpc_error.dart';
-import 'package:walletconnect_dart_v2/apis/models/json_rpc_request.dart';
+import 'package:walletconnect_flutter_v2/apis/core/relay_client/relay_client_models.dart';
+import 'package:walletconnect_flutter_v2/apis/models/json_rpc_error.dart';
+import 'package:walletconnect_flutter_v2/apis/models/json_rpc_request.dart';
 
 part 'pairing_models.g.dart';
 
@@ -34,6 +33,11 @@ class PairingInfo {
       _$PairingInfoFromJson(json);
 
   Map<String, dynamic> toJson() => _$PairingInfoToJson(this);
+
+  @override
+  String toString() {
+    return 'PairingInfo(topic: $topic, expiry: $expiry, relay: $relay, active: $active, peerMetadata: $peerMetadata)';
+  }
 }
 
 @JsonSerializable()
@@ -66,7 +70,7 @@ class PairingMetadata {
 
   @override
   String toString() {
-    return 'Name: $name, Description: $description, Url: $url, Icons: $icons';
+    return 'PairingMetadata(name: $name, description: $description, url: $url, icons: $icons, redirect: $redirect)';
   }
 
   @override
@@ -102,6 +106,11 @@ class Redirect {
   Map<String, dynamic> toJson() => _$RedirectToJson(this);
 
   @override
+  String toString() {
+    return 'Redirect(native: $native, universal: $universal)';
+  }
+
+  @override
   bool operator ==(Object other) {
     return other is Redirect && hashCode == other.hashCode;
   }
@@ -115,11 +124,18 @@ class Redirect {
 class CreateResponse {
   String topic;
   Uri uri;
+  PairingInfo pairingInfo;
 
   CreateResponse({
     required this.topic,
     required this.uri,
+    required this.pairingInfo,
   });
+
+  @override
+  String toString() {
+    return 'CreateResponse(topic: $topic, uri: $uri)';
+  }
 }
 
 class ExpirationEvent extends EventArgs {
@@ -130,12 +146,22 @@ class ExpirationEvent extends EventArgs {
     required this.target,
     required this.expiry,
   });
+
+  @override
+  String toString() {
+    return 'ExpirationEvent(target: $target, expiry: $expiry)';
+  }
 }
 
 class HistoryEvent extends EventArgs {
   JsonRpcRecord record;
 
   HistoryEvent({required this.record});
+
+  @override
+  String toString() {
+    return 'HistoryEvent(record: $record)';
+  }
 }
 
 class PairingInvalidEvent extends EventArgs {
@@ -144,6 +170,11 @@ class PairingInvalidEvent extends EventArgs {
   PairingInvalidEvent({
     required this.message,
   });
+
+  @override
+  String toString() {
+    return 'PairingInvalidEvent(message: $message)';
+  }
 }
 
 class PairingEvent extends EventArgs {
@@ -156,6 +187,26 @@ class PairingEvent extends EventArgs {
     this.topic,
     this.error,
   });
+
+  @override
+  String toString() {
+    return 'PairingEvent(id: $id, topic: $topic, error: $error)';
+  }
+}
+
+class PairingActivateEvent extends EventArgs {
+  String topic;
+  int expiry;
+
+  PairingActivateEvent({
+    required this.topic,
+    required this.expiry,
+  });
+
+  @override
+  String toString() {
+    return 'PairingActivateEvent(topic: $topic, expiry: $expiry)';
+  }
 }
 
 @JsonSerializable()
@@ -179,6 +230,11 @@ class JsonRpcRecord {
       _$JsonRpcRecordFromJson(json);
 
   Map<String, dynamic> toJson() => _$JsonRpcRecordToJson(this);
+
+  @override
+  String toString() {
+    return 'JsonRpcRecord(id: $id, topic: $topic, method: $method, params: $params, response: $response, chainId: $chainId)';
+  }
 }
 
 class RegisteredFunction {
@@ -191,4 +247,9 @@ class RegisteredFunction {
     required this.function,
     required this.type,
   });
+
+  @override
+  String toString() {
+    return 'RegisteredFunction(method: $method, function: $function, type: $type)';
+  }
 }

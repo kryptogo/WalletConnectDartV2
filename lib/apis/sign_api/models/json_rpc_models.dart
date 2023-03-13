@@ -1,8 +1,8 @@
 import 'package:json_annotation/json_annotation.dart';
-import 'package:walletconnect_dart_v2/apis/core/relay_client/relay_client_models.dart';
-import 'package:walletconnect_dart_v2/apis/models/basic_models.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/models/proposal_models.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/models/session_models.dart';
+import 'package:walletconnect_flutter_v2/apis/core/relay_client/relay_client_models.dart';
+import 'package:walletconnect_flutter_v2/apis/models/basic_models.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/models/proposal_models.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/models/session_models.dart';
 
 part 'json_rpc_models.g.dart';
 
@@ -35,7 +35,7 @@ class WcPairingPingRequest {
 class WcSessionProposeRequest {
   final List<Relay> relays;
   final Map<String, RequiredNamespace> requiredNamespaces;
-  final Map<String, RequiredNamespace> optionalNamespaces;
+  final Map<String, RequiredNamespace>? optionalNamespaces;
   final Map<String, String>? sessionProperties;
   final ConnectionMetadata proposer;
 
@@ -73,8 +73,8 @@ class WcSessionProposeResponse {
 class WcSessionSettleRequest {
   final Relay relay;
   final Map<String, Namespace> namespaces;
-  final Map<String, RequiredNamespace> requiredNamespaces;
-  final Map<String, RequiredNamespace> optionalNamespaces;
+  final Map<String, RequiredNamespace>? requiredNamespaces;
+  final Map<String, RequiredNamespace>? optionalNamespaces;
   final Map<String, String>? sessionProperties;
   final int expiry;
   final ConnectionMetadata controller;

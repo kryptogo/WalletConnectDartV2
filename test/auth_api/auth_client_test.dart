@@ -1,14 +1,14 @@
-import 'dart:convert';
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:eth_sig_util/eth_sig_util.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:walletconnect_dart_v2/apis/auth_api/auth_engine.dart';
-import 'package:walletconnect_dart_v2/apis/auth_api/i_auth_engine_app.dart';
-import 'package:walletconnect_dart_v2/apis/auth_api/i_auth_engine_wallet.dart';
-import 'package:walletconnect_dart_v2/apis/core/store/generic_store.dart';
-import 'package:walletconnect_dart_v2/apis/auth_api/utils/auth_constants.dart';
-import 'package:walletconnect_dart_v2/walletconnect_dart_v2.dart';
+import 'package:walletconnect_flutter_v2/apis/auth_api/auth_engine.dart';
+import 'package:walletconnect_flutter_v2/apis/auth_api/i_auth_engine_app.dart';
+import 'package:walletconnect_flutter_v2/apis/auth_api/i_auth_engine_wallet.dart';
+import 'package:walletconnect_flutter_v2/apis/core/store/generic_store.dart';
+import 'package:walletconnect_flutter_v2/apis/auth_api/utils/auth_constants.dart';
+import 'package:walletconnect_flutter_v2/walletconnect_flutter_v2.dart';
 
 import '../shared/shared_test_values.dart';
 import 'utils/engine_constants.dart';
@@ -17,14 +17,20 @@ import 'utils/signature_constants.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  final List<Future<IAuthEngineApp> Function(ICore, PairingMetadata)>
-      authAppCreators = [
-    (ICore core, PairingMetadata metadata) async =>
-        await AuthClient.createInstance(
-          core: core,
+  final List<Future<IAuthEngineApp> Function(PairingMetadata)> authAppCreators =
+      [
+    (PairingMetadata metadata) async => await AuthClient.createInstance(
+          projectId: TEST_PROJECT_ID,
+          relayUrl: TEST_RELAY_URL,
           metadata: metadata,
+          memoryStore: true,
         ),
-    (ICore core, PairingMetadata? self) async {
+    (PairingMetadata? self) async {
+      final core = Core(
+        projectId: TEST_PROJECT_ID,
+        relayUrl: TEST_RELAY_URL,
+        memoryStore: true,
+      );
       IAuthEngine e = AuthEngine(
         core: core,
         metadata: self ?? PairingMetadata.empty(),
@@ -32,21 +38,21 @@ void main() {
           core: core,
           context: AuthConstants.CONTEXT_AUTH_KEYS,
           version: AuthConstants.VERSION_AUTH_KEYS,
-          toJsonString: (AuthPublicKey value) {
-            return jsonEncode(value.toJson());
+          toJson: (AuthPublicKey value) {
+            return value.toJson();
           },
-          fromJsonString: (String value) {
-            return AuthPublicKey.fromJson(jsonDecode(value));
+          fromJson: (dynamic value) {
+            return AuthPublicKey.fromJson(value);
           },
         ),
         pairingTopics: GenericStore(
           core: core,
           context: AuthConstants.CONTEXT_PAIRING_TOPICS,
           version: AuthConstants.VERSION_PAIRING_TOPICS,
-          toJsonString: (String value) {
+          toJson: (String value) {
             return value;
           },
-          fromJsonString: (String value) {
+          fromJson: (dynamic value) {
             return value;
           },
         ),
@@ -54,22 +60,22 @@ void main() {
           core: core,
           context: AuthConstants.CONTEXT_AUTH_REQUESTS,
           version: AuthConstants.VERSION_AUTH_REQUESTS,
-          toJsonString: (PendingAuthRequest value) {
-            return jsonEncode(value.toJson());
+          toJson: (PendingAuthRequest value) {
+            return value.toJson();
           },
-          fromJsonString: (String value) {
-            return PendingAuthRequest.fromJson(jsonDecode(value));
+          fromJson: (dynamic value) {
+            return PendingAuthRequest.fromJson(value);
           },
         ),
         completeRequests: GenericStore(
           core: core,
           context: AuthConstants.CONTEXT_COMPLETE_REQUESTS,
           version: AuthConstants.VERSION_COMPLETE_REQUESTS,
-          toJsonString: (StoredCacao value) {
-            return jsonEncode(value.toJson());
+          toJson: (StoredCacao value) {
+            return value.toJson();
           },
-          fromJsonString: (String value) {
-            return StoredCacao.fromJson(jsonDecode(value));
+          fromJson: (dynamic value) {
+            return StoredCacao.fromJson(value);
           },
         ),
       );
@@ -78,21 +84,28 @@ void main() {
 
       return e;
     },
-    (ICore core, PairingMetadata metadata) async =>
-        await Web3App.createInstance(
-          core: core,
+    (PairingMetadata metadata) async => await AuthClient.createInstance(
+          projectId: TEST_PROJECT_ID,
+          relayUrl: TEST_RELAY_URL,
           metadata: metadata,
+          memoryStore: true,
         ),
   ];
 
-  final List<Future<IAuthEngineWallet> Function(ICore, PairingMetadata)>
+  final List<Future<IAuthEngineWallet> Function(PairingMetadata)>
       authWalletCreators = [
-    (ICore core, PairingMetadata metadata) async =>
-        await Web3Wallet.createInstance(
-          core: core,
+    (PairingMetadata metadata) async => await Web3Wallet.createInstance(
+          projectId: TEST_PROJECT_ID,
+          relayUrl: TEST_RELAY_URL,
           metadata: metadata,
+          memoryStore: true,
         ),
-    (ICore core, PairingMetadata metadata) async {
+    (PairingMetadata metadata) async {
+      final core = Core(
+        projectId: TEST_PROJECT_ID,
+        relayUrl: TEST_RELAY_URL,
+        memoryStore: true,
+      );
       IAuthEngine e = AuthEngine(
         core: core,
         metadata: metadata,
@@ -100,21 +113,21 @@ void main() {
           core: core,
           context: AuthConstants.CONTEXT_AUTH_KEYS,
           version: AuthConstants.VERSION_AUTH_KEYS,
-          toJsonString: (AuthPublicKey value) {
-            return jsonEncode(value.toJson());
+          toJson: (AuthPublicKey value) {
+            return value.toJson();
           },
-          fromJsonString: (String value) {
-            return AuthPublicKey.fromJson(jsonDecode(value));
+          fromJson: (dynamic value) {
+            return AuthPublicKey.fromJson(value);
           },
         ),
         pairingTopics: GenericStore(
           core: core,
           context: AuthConstants.CONTEXT_PAIRING_TOPICS,
           version: AuthConstants.VERSION_PAIRING_TOPICS,
-          toJsonString: (String value) {
+          toJson: (String value) {
             return value;
           },
-          fromJsonString: (String value) {
+          fromJson: (dynamic value) {
             return value;
           },
         ),
@@ -122,22 +135,22 @@ void main() {
           core: core,
           context: AuthConstants.CONTEXT_AUTH_REQUESTS,
           version: AuthConstants.VERSION_AUTH_REQUESTS,
-          toJsonString: (PendingAuthRequest value) {
-            return jsonEncode(value.toJson());
+          toJson: (PendingAuthRequest value) {
+            return value.toJson();
           },
-          fromJsonString: (String value) {
-            return PendingAuthRequest.fromJson(jsonDecode(value));
+          fromJson: (dynamic value) {
+            return PendingAuthRequest.fromJson(value);
           },
         ),
         completeRequests: GenericStore(
           core: core,
           context: AuthConstants.CONTEXT_COMPLETE_REQUESTS,
           version: AuthConstants.VERSION_COMPLETE_REQUESTS,
-          toJsonString: (StoredCacao value) {
-            return jsonEncode(value.toJson());
+          toJson: (StoredCacao value) {
+            return value.toJson();
           },
-          fromJsonString: (String value) {
-            return StoredCacao.fromJson(jsonDecode(value));
+          fromJson: (dynamic value) {
+            return StoredCacao.fromJson(value);
           },
         ),
       );
@@ -146,14 +159,15 @@ void main() {
 
       return e;
     },
-    (ICore core, PairingMetadata metadata) async =>
-        await Web3Wallet.createInstance(
-          core: core,
+    (PairingMetadata metadata) async => await Web3Wallet.createInstance(
+          projectId: TEST_PROJECT_ID,
+          relayUrl: TEST_RELAY_URL,
           metadata: metadata,
+          memoryStore: true,
         ),
   ];
 
-  final List<String> contexts = ['SignClient', 'SignEngine', 'Web3App/Wallet'];
+  final List<String> contexts = ['AuthClient', 'AuthEngine', 'Web3App/Wallet'];
 
   for (int i = 0; i < authAppCreators.length; i++) {
     runTests(
@@ -166,9 +180,8 @@ void main() {
 
 void runTests({
   required String context,
-  required Future<IAuthEngineApp> Function(ICore, PairingMetadata)
-      engineAppCreator,
-  required Future<IAuthEngineWallet> Function(ICore, PairingMetadata)
+  required Future<IAuthEngineApp> Function(PairingMetadata) engineAppCreator,
+  required Future<IAuthEngineWallet> Function(PairingMetadata)
       engineWalletCreator,
 }) {
   group(context, () {
@@ -177,19 +190,9 @@ void runTests({
 
     setUp(() async {
       clientA = await engineAppCreator(
-        Core(
-          relayUrl: TEST_RELAY_URL,
-          projectId: TEST_PROJECT_ID,
-          memoryStore: true,
-        ),
         TEST_METADATA_REQUESTER,
       );
       clientB = await engineWalletCreator(
-        Core(
-          relayUrl: TEST_RELAY_URL,
-          projectId: TEST_PROJECT_ID,
-          memoryStore: true,
-        ),
         TEST_METADATA_RESPONDER,
       );
     });
@@ -213,6 +216,10 @@ void runTests({
         );
         final String pairingTopic = response.pairingTopic;
 
+        Completer completerAPairing = Completer();
+        Completer completerBPairing = Completer();
+        Completer completerA = Completer();
+        Completer completerB = Completer();
         int counterAPairing = 0;
         int counterBPairing = 0;
         int counterA = 0;
@@ -221,14 +228,17 @@ void runTests({
           expect(pairing != null, true);
           expect(pairing!.topic, pairingTopic);
           counterAPairing++;
+          completerAPairing.complete();
         });
         clientB.core.pairing.onPairingPing.subscribe((PairingEvent? pairing) {
           expect(pairing != null, true);
           expect(pairing!.topic, pairingTopic);
           counterBPairing++;
+          completerBPairing.complete();
         });
         clientA.onAuthResponse.subscribe((AuthResponse? args) {
           counterA++;
+          completerA.complete();
         });
         clientB.onAuthRequest.subscribe((AuthRequest? args) async {
           counterB++;
@@ -257,6 +267,8 @@ void runTests({
           );
 
           expect(clientB.getPendingAuthRequests().length, currReqCount - 1);
+
+          completerB.complete();
         });
 
         expect(response.uri != null, true);
@@ -269,16 +281,39 @@ void runTests({
         await clientA.core.pairing.ping(topic: pairingTopic);
         await clientB.core.pairing.ping(topic: pairingTopic);
 
-        await Future.delayed(Duration(milliseconds: 100));
+        await completerAPairing.future;
+        await completerBPairing.future;
+        await completerA.future;
+        await completerB.future;
 
         AuthResponse authResponse = await response.completer.future;
         expect(authResponse.result != null, true);
 
-        expect(counterAPairing, 2);
-        expect(counterBPairing, 2);
+        expect(counterAPairing, 1);
+        expect(counterBPairing, 1);
 
         expect(counterA, 1);
         expect(counterB, 1);
+
+        expect(
+          clientA
+              .getCompletedRequestsForPairing(
+                pairingTopic: pairingTopic,
+              )
+              .length,
+          1,
+        );
+        expect(
+          clientB
+              .getCompletedRequestsForPairing(
+                pairingTopic: pairingTopic,
+              )
+              .length,
+          1,
+        );
+
+        completerA = Completer();
+        completerB = Completer();
 
         response = await clientA.requestAuth(
           params: defaultRequestParams,
@@ -287,7 +322,8 @@ void runTests({
 
         expect(response.uri == null, true);
 
-        await Future.delayed(Duration(milliseconds: 100));
+        await completerA.future;
+        await completerB.future;
 
         authResponse = await response.completer.future;
         expect(authResponse.result != null, true);
@@ -295,6 +331,23 @@ void runTests({
         // Got the second request and response
         expect(counterA, 2);
         expect(counterB, 2);
+
+        expect(
+          clientA
+              .getCompletedRequestsForPairing(
+                pairingTopic: pairingTopic,
+              )
+              .length,
+          2,
+        );
+        expect(
+          clientB
+              .getCompletedRequestsForPairing(
+                pairingTopic: pairingTopic,
+              )
+              .length,
+          2,
+        );
 
         clientA.onAuthResponse.unsubscribeAll();
         clientB.onAuthRequest.unsubscribeAll();
@@ -310,27 +363,65 @@ void runTests({
 
         await clientB.core.pairing.pair(uri: response.uri!);
 
-        // clientB.onAuthRequest.subscribe((AuthRequest? args) async {
-        //   print('got here');
-        //   print(clientB.getPendingAuthRequests().length);
-        // });
+        Completer completerA = Completer();
+        clientB.onAuthRequest.subscribe((AuthRequest? args) async {
+          // print('got here');
+          // print(clientB.getPendingAuthRequests().length);
+          completerA.complete();
+        });
 
-        await Future.delayed(Duration(milliseconds: 1000));
+        await completerA.future;
 
         expect(clientB.getPendingAuthRequests().length, 1);
+
+        completerA = Completer();
 
         response = await clientA.requestAuth(
           params: defaultRequestParams,
           pairingTopic: pairingTopic,
         );
 
-        await Future.delayed(Duration(milliseconds: 1000));
+        await completerA.future;
 
         expect(clientB.getPendingAuthRequests().length, 2);
       });
     });
 
     group('requestAuth', () {
+      test('creates correct URI', () async {
+        AuthRequestResponse response = await clientA.requestAuth(
+          params: testAuthRequestParamsValid,
+        );
+
+        expect(response.uri != null, true);
+        URIParseResult parsed = WalletConnectUtils.parseUri(response.uri!);
+        expect(parsed.protocol, 'wc');
+        expect(parsed.version, '2');
+        expect(parsed.topic, response.pairingTopic);
+        expect(parsed.relay.protocol, 'irn');
+        if (clientA is IWeb3App) {
+          expect(parsed.methods.length, 3);
+          expect(parsed.methods[0], MethodConstants.WC_SESSION_PROPOSE);
+          expect(parsed.methods[1], MethodConstants.WC_SESSION_REQUEST);
+          expect(parsed.methods[2], MethodConstants.WC_AUTH_REQUEST);
+        } else {
+          expect(parsed.methods.length, 1);
+          expect(parsed.methods[0], MethodConstants.WC_AUTH_REQUEST);
+        }
+
+        response = await clientA.requestAuth(
+          params: testAuthRequestParamsValid,
+          methods: [],
+        );
+
+        expect(response.uri != null, true);
+        parsed = WalletConnectUtils.parseUri(response.uri!);
+        expect(parsed.protocol, 'wc');
+        expect(parsed.version, '2');
+        expect(parsed.relay.protocol, 'irn');
+        expect(parsed.methods.length, 0);
+      });
+
       test('invalid request params', () async {
         expect(
           () => clientA.requestAuth(

@@ -1,6 +1,6 @@
-import 'package:walletconnect_dart_v2/apis/core/i_core.dart';
-import 'package:walletconnect_dart_v2/apis/core/relay_client/i_message_tracker.dart';
-import 'package:walletconnect_dart_v2/apis/utils/walletconnect_utils.dart';
+import 'package:walletconnect_flutter_v2/apis/core/i_core.dart';
+import 'package:walletconnect_flutter_v2/apis/core/relay_client/i_message_tracker.dart';
+import 'package:walletconnect_flutter_v2/apis/utils/walletconnect_utils.dart';
 
 class MessageTracker implements IMessageTracker {
   static const MESSAGE_TRACKER_CONTEXT = 'MESSAGE_TRACKER';
@@ -55,9 +55,12 @@ class MessageTracker implements IMessageTracker {
   @override
   Future<void> restore() async {
     if (core.storage.has(storageKey)) {
-      messageRecords = WalletConnectUtils.convertMapTo<Map<String, String>>(
-        core.storage.get(storageKey),
-      );
+      Map<String, dynamic> data = core.storage.get(storageKey);
+      for (var entry in data.entries) {
+        Map<String, dynamic> records = entry.value;
+        messageRecords[entry.key] =
+            WalletConnectUtils.convertMapTo<String>(records);
+      }
     }
   }
 }

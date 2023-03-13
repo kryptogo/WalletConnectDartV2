@@ -1,4 +1,4 @@
-import 'package:walletconnect_dart_v2/apis/utils/constants.dart';
+import 'package:walletconnect_flutter_v2/apis/utils/constants.dart';
 
 class AuthConstants {
   static const AUTH_REQUEST_EXPIRY_MIN = WalletConnectConstants.FIVE_MINUTES;
@@ -15,5 +15,5 @@ class AuthConstants {
   static const CONTEXT_AUTH_REQUESTS = 'authRequests';
   static const VERSION_AUTH_REQUESTS = '2.0';
   static const CONTEXT_COMPLETE_REQUESTS = 'completeRequests';
-  static const VERSION_COMPLETE_REQUESTS = '2.0';
+  static const VERSION_COMPLETE_REQUESTS = '2.1';
 }

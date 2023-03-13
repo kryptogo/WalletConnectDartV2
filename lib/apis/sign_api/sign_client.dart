@@ -1,27 +1,25 @@
-import 'dart:convert';
-
 import 'package:event/event.dart';
-import 'package:walletconnect_dart_v2/apis/core/store/generic_store.dart';
-import 'package:walletconnect_dart_v2/apis/core/store/i_generic_store.dart';
-import 'package:walletconnect_dart_v2/apis/core/pairing/i_pairing_store.dart';
-import 'package:walletconnect_dart_v2/apis/core/relay_client/relay_client_models.dart';
-import 'package:walletconnect_dart_v2/apis/models/basic_models.dart';
-import 'package:walletconnect_dart_v2/apis/models/json_rpc_response.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/sign_engine.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/i_sign_engine.dart';
-import 'package:walletconnect_dart_v2/apis/core/pairing/utils/pairing_models.dart';
-import 'package:walletconnect_dart_v2/apis/core/i_core.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/i_sessions.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/i_proposals.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/i_sign_client.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/models/json_rpc_models.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/models/proposal_models.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/models/sign_client_models.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/models/sign_client_events.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/models/session_models.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/proposals.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/sessions.dart';
-import 'package:walletconnect_dart_v2/apis/sign_api/utils/sign_constants.dart';
+import 'package:walletconnect_flutter_v2/apis/core/core.dart';
+import 'package:walletconnect_flutter_v2/apis/core/store/generic_store.dart';
+import 'package:walletconnect_flutter_v2/apis/core/store/i_generic_store.dart';
+import 'package:walletconnect_flutter_v2/apis/core/pairing/i_pairing_store.dart';
+import 'package:walletconnect_flutter_v2/apis/core/relay_client/relay_client_models.dart';
+import 'package:walletconnect_flutter_v2/apis/models/basic_models.dart';
+import 'package:walletconnect_flutter_v2/apis/models/json_rpc_response.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/sign_engine.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/i_sign_engine.dart';
+import 'package:walletconnect_flutter_v2/apis/core/pairing/utils/pairing_models.dart';
+import 'package:walletconnect_flutter_v2/apis/core/i_core.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/i_sessions.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/i_sign_client.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/models/json_rpc_models.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/models/proposal_models.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/models/sign_client_models.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/models/sign_client_events.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/models/session_models.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/sessions.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/utils/sign_constants.dart';
+import 'package:walletconnect_flutter_v2/apis/utils/constants.dart';
 
 class SignClient implements ISignClient {
   bool _initialized = false;
@@ -46,6 +44,8 @@ class SignClient implements ISignClient {
   @override
   Event<SessionProposalEvent> get onSessionProposal => engine.onSessionProposal;
   @override
+  Event<SessionProposalEvent> get onProposalExpire => engine.onProposalExpire;
+  @override
   Event<SessionRequestEvent> get onSessionRequest => engine.onSessionRequest;
   @override
   Event<SessionUpdate> get onSessionUpdate => engine.onSessionUpdate;
@@ -65,11 +65,17 @@ class SignClient implements ISignClient {
   late ISignEngine engine;
 
   static Future<SignClient> createInstance({
-    required ICore core,
+    required String projectId,
+    String relayUrl = WalletConnectConstants.DEFAULT_RELAY_URL,
     required PairingMetadata metadata,
+    bool memoryStore = false,
   }) async {
     final client = SignClient(
-      core: core,
+      core: Core(
+        projectId: projectId,
+        relayUrl: relayUrl,
+        memoryStore: memoryStore,
+      ),
       metadata: metadata,
     );
     await client.init();
@@ -88,11 +94,11 @@ class SignClient implements ISignClient {
         core: core,
         context: SignConstants.CONTEXT_PROPOSALS,
         version: SignConstants.VERSION_PROPOSALS,
-        toJsonString: (ProposalData value) {
-          return jsonEncode(value.toJson());
+        toJson: (ProposalData value) {
+          return value.toJson();
         },
-        fromJsonString: (String value) {
-          return ProposalData.fromJson(jsonDecode(value));
+        fromJson: (dynamic value) {
+          return ProposalData.fromJson(value);
         },
       ),
       sessions: Sessions(core),
@@ -100,11 +106,11 @@ class SignClient implements ISignClient {
         core: core,
         context: SignConstants.CONTEXT_PENDING_REQUESTS,
         version: SignConstants.VERSION_PENDING_REQUESTS,
-        toJsonString: (SessionRequest value) {
-          return jsonEncode(value.toJson());
+        toJson: (SessionRequest value) {
+          return value.toJson();
         },
-        fromJsonString: (String value) {
-          return SessionRequest.fromJson(jsonDecode(value));
+        fromJson: (dynamic value) {
+          return SessionRequest.fromJson(value);
         },
       ),
     );
@@ -129,6 +135,7 @@ class SignClient implements ISignClient {
     Map<String, String>? sessionProperties,
     String? pairingTopic,
     List<Relay>? relays,
+    List<List<String>>? methods = SignEngine.DEFAULT_METHODS,
   }) async {
     try {
       return await engine.connect(
@@ -137,6 +144,7 @@ class SignClient implements ISignClient {
         sessionProperties: sessionProperties,
         pairingTopic: pairingTopic,
         relays: relays,
+        methods: methods,
       );
     } catch (e) {
       // print(e);
@@ -175,7 +183,7 @@ class SignClient implements ISignClient {
   @override
   Future<void> rejectSession({
     required int id,
-    required WalletConnectErrorResponse reason,
+    required WalletConnectError reason,
   }) async {
     try {
       return await engine.rejectSession(
@@ -267,7 +275,7 @@ class SignClient implements ISignClient {
   void registerEventHandler({
     required String chainId,
     required String event,
-    void Function(String, dynamic)? handler,
+    dynamic Function(String, dynamic)? handler,
   }) {
     try {
       return engine.registerEventHandler(
@@ -311,7 +319,7 @@ class SignClient implements ISignClient {
   @override
   Future<void> disconnectSession({
     required String topic,
-    required WalletConnectErrorResponse reason,
+    required WalletConnectError reason,
   }) async {
     try {
       return await engine.disconnectSession(
@@ -338,6 +346,19 @@ class SignClient implements ISignClient {
   Map<String, SessionData> getActiveSessions() {
     try {
       return engine.getActiveSessions();
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  @override
+  Map<String, SessionData> getSessionsForPairing({
+    required String pairingTopic,
+  }) {
+    try {
+      return engine.getSessionsForPairing(
+        pairingTopic: pairingTopic,
+      );
     } catch (e) {
       rethrow;
     }
