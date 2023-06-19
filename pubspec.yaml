@@ -20,11 +20,13 @@ dependencies:
   ed25519_edwards: ^0.3.1
   # json_rpc_2: ^3.0.2
   event: ^2.1.2
-  stream_channel: ^2.1.0
   shared_preferences: ^2.0.17
   universal_io: ^2.0.4
   stack_trace: ^1.10.0
-  web3dart: ^2.5.1
+  web3dart:
+    git:
+      url: https://github.com/kryptogo/web3dart.git
+      ref: master
   logger: ^1.4.0
 
 dev_dependencies:
