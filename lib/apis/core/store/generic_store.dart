@@ -1,34 +1,42 @@
+import 'package:event/event.dart';
+import 'package:flutter/material.dart';
 import 'package:walletconnect_flutter_v2/apis/core/store/i_generic_store.dart';
-import 'package:walletconnect_flutter_v2/apis/core/i_core.dart';
+import 'package:walletconnect_flutter_v2/apis/core/store/i_store.dart';
+import 'package:walletconnect_flutter_v2/apis/core/store/store_models.dart';
 import 'package:walletconnect_flutter_v2/apis/utils/errors.dart';
 
 class GenericStore<T> implements IGenericStore<T> {
+  @override
   final String context;
+  @override
   final String version;
 
   @override
   String get storageKey => '$version//$context';
   @override
-  final ICore core;
+  final IStore storage;
+
+  @override
+  final Event<StoreCreateEvent<T>> onCreate = Event();
+  @override
+  final Event<StoreUpdateEvent<T>> onUpdate = Event();
+  @override
+  final Event<StoreDeleteEvent<T>> onDelete = Event();
+  @override
+  final Event<StoreSyncEvent> onSync = Event();
 
   bool _initialized = false;
 
   /// Stores map of key to pairing info
   Map<String, T> data = {};
 
-  /// Stores map of key to pairing info as json encoded string
-  // Map<String, String> dataStrings = {};
-
-  @override
-  final dynamic Function(T) toJson;
   @override
   final T Function(dynamic) fromJson;
 
   GenericStore({
-    required this.core,
+    required this.storage,
     required this.context,
     required this.version,
-    required this.toJson,
     required this.fromJson,
   });
 
@@ -38,7 +46,7 @@ class GenericStore<T> implements IGenericStore<T> {
       return;
     }
 
-    await core.storage.init();
+    await storage.init();
     await restore();
 
     _initialized = true;
@@ -46,13 +54,13 @@ class GenericStore<T> implements IGenericStore<T> {
 
   @override
   bool has(String key) {
-    _checkInitialized();
+    checkInitialized();
     return data.containsKey(key);
   }
 
   @override
   T? get(String key) {
-    _checkInitialized();
+    checkInitialized();
     if (data.containsKey(key)) {
       return data[key]!;
     }
@@ -66,36 +74,96 @@ class GenericStore<T> implements IGenericStore<T> {
 
   @override
   Future<void> set(String key, T value) async {
-    _checkInitialized();
+    checkInitialized();
+
+    if (data.containsKey(key)) {
+      onUpdate.broadcast(
+        StoreUpdateEvent(
+          key,
+          value,
+        ),
+      );
+    } else {
+      onCreate.broadcast(
+        StoreCreateEvent(
+          key,
+          value,
+        ),
+      );
+    }
+
     data[key] = value;
-    // dataStrings[key] = toJsonString(value);
+
     await persist();
   }
 
   @override
   Future<void> delete(String key) async {
-    _checkInitialized();
-    data.remove(key);
-    // dataStrings.remove(key);
+    checkInitialized();
+
+    if (!data.containsKey(key)) {
+      return;
+    }
+
+    onDelete.broadcast(
+      StoreDeleteEvent(
+        key,
+        data.remove(key) as T,
+      ),
+    );
+
     await persist();
   }
 
   @override
   Future<void> persist() async {
-    _checkInitialized();
-    await core.storage.set(storageKey, data);
+    checkInitialized();
+
+    onSync.broadcast(
+      StoreSyncEvent(),
+    );
+
+    await storage.set(storageKey, data);
   }
 
   @override
   Future<void> restore() async {
-    if (core.storage.has(storageKey)) {
-      for (var entry in core.storage.get(storageKey).entries) {
-        data[entry.key] = fromJson(entry.value);
+    // If we haven't stored our version yet, we need to store it and stop
+    if (!storage.has(context)) {
+      // print('Storing $context');
+      await storage.set(context, {'version': version});
+      await storage.set(storageKey, <String, dynamic>{});
+      return;
+    }
+
+    // If we have stored our version, but it doesn't match, we need to delete the previous data,
+    // create a new version, and stop
+    final String storedVersion = storage.get(context)['version'];
+    if (storedVersion != version) {
+      // print('Updating storage from $storedVersion to $version');
+      await storage.delete('$storedVersion//$context');
+      await storage.set(context, {'version': version});
+      await storage.set(storageKey, <String, dynamic>{});
+      return;
+    }
+
+    if (storage.has(storageKey)) {
+      // If there is invalid data, delete the stored data
+      // print('Restoring $storageKey');
+      try {
+        for (var entry in storage.get(storageKey).entries) {
+          // print(entry);
+          data[entry.key] = fromJson(entry.value);
+        }
+      } catch (e) {
+        // print('Error restoring $storageKey: $e');
+        await storage.delete(storedVersion);
       }
     }
   }
 
-  void _checkInitialized() {
+  @protected
+  void checkInitialized() {
     if (!_initialized) {
       throw Errors.getInternalError(Errors.NOT_INITIALIZED);
     }

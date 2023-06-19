@@ -1,5 +1,6 @@
 import 'package:event/event.dart';
 import 'package:walletconnect_flutter_v2/apis/core/crypto/crypto_models.dart';
+
 import 'package:walletconnect_flutter_v2/apis/core/pairing/i_pairing_store.dart';
 import 'package:walletconnect_flutter_v2/apis/core/pairing/utils/pairing_models.dart';
 import 'package:walletconnect_flutter_v2/apis/models/json_rpc_error.dart';
@@ -48,7 +49,7 @@ abstract class IPairing {
   Future sendRequest(
     String topic,
     String method,
-    Map<String, dynamic> params, {
+    dynamic params, {
     int? id,
     int? ttl,
     EncodeOptions? encodeOptions,

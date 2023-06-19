@@ -5,7 +5,8 @@ import 'package:walletconnect_flutter_v2/apis/sign_api/i_sign_engine_app.dart';
 import 'package:walletconnect_flutter_v2/apis/sign_api/i_sign_engine_wallet.dart';
 import 'package:walletconnect_flutter_v2/walletconnect_flutter_v2.dart';
 
-import 'utils/sign_client_constants.dart';
+import '../../shared/shared_test_values.dart';
+import '../utils/sign_client_constants.dart';
 
 class TestConnectMethodReturn {
   PairingInfo pairing;
@@ -27,25 +28,69 @@ class SignClientHelpers {
     ISignEngineWallet b, {
     Map<String, Namespace>? namespaces,
     Map<String, RequiredNamespace>? requiredNamespaces,
+    Map<String, List<String>>? accounts,
+    Map<String, List<String>>? methods,
+    Map<String, List<String>>? events,
     List<Relay>? relays,
     String? pairingTopic,
     int? qrCodeScanLatencyMs,
   }) async {
     final start = DateTime.now().millisecondsSinceEpoch;
     final Map<String, RequiredNamespace> reqNamespaces =
-        requiredNamespaces != null
-            ? requiredNamespaces
-            : TEST_REQUIRED_NAMESPACES;
+        requiredNamespaces ?? TEST_REQUIRED_NAMESPACES;
 
-    Map<String, Namespace> workingNamespaces =
-        namespaces != null ? namespaces : TEST_NAMESPACES;
+    Map<String, Namespace> workingNamespaces = namespaces ?? TEST_NAMESPACES;
 
-    SessionData? sessionA;
+    Map<String, List<String>> workingAccounts = accounts ??
+        {
+          TEST_ETHEREUM_CHAIN: [TEST_ETHEREUM_ADDRESS],
+          TEST_ARBITRUM_CHAIN: [TEST_ETHEREUM_ADDRESS],
+          TEST_AVALANCHE_CHAIN: [TEST_ETHEREUM_ADDRESS],
+        };
+
+    Map<String, List<String>> workingMethods = methods ??
+        {
+          TEST_ETHEREUM_CHAIN: TEST_METHODS_1,
+          TEST_ARBITRUM_CHAIN: TEST_METHODS_1,
+          TEST_AVALANCHE_CHAIN: TEST_METHODS_2,
+        };
+
+    Map<String, List<String>> workingEvents = events ??
+        {
+          TEST_ETHEREUM_CHAIN: [TEST_EVENT_1],
+          TEST_ARBITRUM_CHAIN: [TEST_EVENT_1],
+          TEST_AVALANCHE_CHAIN: [TEST_EVENT_2],
+        };
+
+    // Register the data: accounts, methods, events
+    for (final chainId in workingAccounts.keys) {
+      for (final account in workingAccounts[chainId]!) {
+        b.registerAccount(
+          chainId: chainId,
+          accountAddress: account,
+        );
+      }
+    }
+    for (final chainId in workingMethods.keys) {
+      for (final method in workingMethods[chainId]!) {
+        b.registerRequestHandler(chainId: chainId, method: method);
+      }
+    }
+    for (final chainId in workingEvents.keys) {
+      for (final event in workingEvents[chainId]!) {
+        b.registerEventEmitter(
+          chainId: chainId,
+          event: event,
+        );
+      }
+    }
+
+    late SessionData sessionA;
     SessionData? sessionB;
 
     // Listen for a proposal via connect to avoid race conditions
     Completer sessionBCompleter = Completer();
-    final f = (SessionProposalEvent? args) async {
+    func(SessionProposalEvent? args) async {
       // print('B Session Proposal');
 
       expect(
@@ -61,19 +106,26 @@ class SignClientHelpers {
         completer.complete();
       });
 
+      workingNamespaces = args.params.generatedNamespaces ?? workingNamespaces;
+
       ApproveResponse response = await b.approveSession(
         id: args.id,
         namespaces: workingNamespaces,
       );
       sessionB = response.session;
-      await completer.future;
+
+      if (!completer.isCompleted) {
+        await completer.future;
+      }
+
       b.onSessionConnect.unsubscribeAll();
       sessionBCompleter.complete();
 
       // print('B Session assigned: $sessionB');
       // expect(b.core.expirer.has(args.params.id.toString()), true);
-    };
-    b.onSessionProposal.subscribe(f);
+    }
+
+    b.onSessionProposal.subscribe(func);
 
     // Connect to client b from a, this will trigger the above event
     // print('connecting');
@@ -81,6 +133,9 @@ class SignClientHelpers {
       requiredNamespaces: reqNamespaces,
       pairingTopic: pairingTopic,
       relays: relays,
+    );
+    connectResponse.session.future.then(
+      (value) => sessionA = value,
     );
     Uri? uri = connectResponse.uri;
 
@@ -109,14 +164,14 @@ class SignClientHelpers {
       pairingA = a.pairings.get(uriParams.topic);
       expect(pairingA != null, true);
       expect(pairingA!.topic, uriParams.topic);
-      expect(pairingA.relay.protocol, uriParams.relay.protocol);
+      expect(pairingA.relay.protocol, uriParams.v2Data!.relay.protocol);
 
       // If we recieved no pairing topic, then we want to create one
       // e.g. we pair from b to a using the uri created from the connect
       // params (The QR code).
-      final pairTimeoutMs = 15000;
-      final timeout = Timer(Duration(milliseconds: pairTimeoutMs), () {
-        throw Exception("Pair timed out after $pairTimeoutMs ms");
+      const pairTimeoutMs = 15000;
+      final timeout = Timer(const Duration(milliseconds: pairTimeoutMs), () {
+        throw Exception('Pair timed out after $pairTimeoutMs ms');
       });
       // print('pairing B -> A');
       pairingB = await b.pair(uri: uri);
@@ -133,18 +188,23 @@ class SignClientHelpers {
     }
 
     // Assign session now that we have paired
-    // print('Waiting for connect response');
-    sessionA = await connectResponse.session.future;
+    if (!connectResponse.session.isCompleted) {
+      a.core.logger.i('signClientHelpers waiting connectResponseCompleter');
+      // print('Waiting for connect response');
+      await connectResponse.session.future;
+    }
 
     final settlePairingLatencyMs = DateTime.now().millisecondsSinceEpoch -
         start -
         (qrCodeScanLatencyMs ?? 0);
 
-    // await Future.delayed(Duration(milliseconds: 200));
-    await sessionBCompleter.future;
+    if (!sessionBCompleter.isCompleted) {
+      a.core.logger.i('signClientHelpers waiting sessionBCompleter');
+      await sessionBCompleter.future;
+    }
 
     // if (sessionA == null) throw Exception("expect session A to be defined");
-    if (sessionB == null) throw Exception("expect session B to be defined");
+    if (sessionB == null) throw Exception('expect session B to be defined');
 
     expect(sessionA.topic, sessionB!.topic);
     // relay
@@ -162,7 +222,8 @@ class SignClientHelpers {
     expect(a.core.expirer.has(sessionA.topic), true);
     expect(b.core.expirer.has(sessionB!.topic), true);
     // acknowledged
-    expect(sessionA.acknowledged, sessionB!.acknowledged);
+    expect(sessionA.acknowledged, true);
+    expect(sessionB!.acknowledged, true);
     // participants
     expect(sessionA.self, sessionB!.peer);
     expect(sessionA.peer, sessionB!.self);
@@ -176,7 +237,7 @@ class SignClientHelpers {
     expect(sessionB!.self.metadata, sessionA.peer.metadata);
 
     // if (pairingA == null) throw Exception("expect pairing A to be defined");
-    if (pairingB == null) throw Exception("expect pairing B to be defined");
+    if (pairingB == null) throw Exception('expect pairing B to be defined');
 
     // update pairing state beforehand
     pairingA = a.pairings.get(pairingA.topic);
@@ -206,7 +267,7 @@ class SignClientHelpers {
       sessionB!.peer.metadata,
     );
 
-    b.onSessionProposal.unsubscribe(f);
+    b.onSessionProposal.unsubscribe(func);
 
     return TestConnectMethodReturn(
       pairingA,
@@ -227,20 +288,16 @@ class SignClientHelpers {
   }) async {
     final start = DateTime.now().millisecondsSinceEpoch;
     final Map<String, RequiredNamespace> reqNamespaces =
-        requiredNamespaces != null
-            ? requiredNamespaces
-            : TEST_REQUIRED_NAMESPACES;
+        requiredNamespaces ?? TEST_REQUIRED_NAMESPACES;
 
-    Map<String, Namespace> workingNamespaces =
-        namespaces != null ? namespaces : TEST_NAMESPACES;
+    // Map<String, Namespace> workingNamespaces =
+    //     namespaces != null ? namespaces : TEST_NAMESPACES;
 
-    SessionData? sessionA;
+    // SessionData? sessionA;
 
     // Listen for a proposal via connect to avoid race conditions
     Completer sessionBCompleter = Completer();
-    final f = (SessionProposalEvent? args) async {
-      // print('B Session Proposal');
-
+    f(SessionProposalEvent? args) async {
       expect(
         args!.params.requiredNamespaces,
         reqNamespaces,
@@ -258,7 +315,8 @@ class SignClientHelpers {
 
       // print('B Session assigned: $sessionB');
       // expect(b.core.expirer.has(args.params.id.toString()), true);
-    };
+    }
+
     b.onSessionProposal.subscribe(f);
 
     // Connect to client b from a, this will trigger the above event
@@ -271,8 +329,7 @@ class SignClientHelpers {
     Uri? uri = connectResponse.uri;
 
     // Track latency
-    final clientAConnectLatencyMs =
-        DateTime.now().millisecondsSinceEpoch - start;
+    final _ = DateTime.now().millisecondsSinceEpoch - start;
 
     // Track pairings from "QR Scans"
     PairingInfo? pairingA;
@@ -295,14 +352,14 @@ class SignClientHelpers {
       pairingA = a.pairings.get(uriParams.topic);
       expect(pairingA != null, true);
       expect(pairingA!.topic, uriParams.topic);
-      expect(pairingA.relay.protocol, uriParams.relay.protocol);
+      expect(pairingA.relay.protocol, uriParams.v2Data!.relay.protocol);
 
       // If we recieved no pairing topic, then we want to create one
       // e.g. we pair from b to a using the uri created from the connect
       // params (The QR code).
-      final pairTimeoutMs = 15000;
-      final timeout = Timer(Duration(milliseconds: pairTimeoutMs), () {
-        throw Exception("Pair timed out after $pairTimeoutMs ms");
+      const pairTimeoutMs = 15000;
+      final timeout = Timer(const Duration(milliseconds: pairTimeoutMs), () {
+        throw Exception('Pair timed out after $pairTimeoutMs ms');
       });
       // print('pairing B -> A');
       pairingB = await b.pair(uri: uri);
@@ -321,7 +378,10 @@ class SignClientHelpers {
     // Assign session now that we have paired
     // print('Waiting for connect response');
     try {
-      await connectResponse.session.future;
+      if (!connectResponse.session.isCompleted) {
+        // print('Waiting for connect response');
+        await connectResponse.session.future;
+      }
       await sessionBCompleter.future;
     } catch (e) {
       b.onSessionProposal.unsubscribe(f);

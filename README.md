@@ -89,7 +89,7 @@ wcClient.onSessionEvent.subscribe((SessionEvent? session) {
   // Do something with the event
 });
 wcClient.registerEventHandler(
-  namespace: 'kadena',
+  chainId: 'kadena',
   event: 'kadena_transaction_updated',
 );
 ```
@@ -122,6 +122,11 @@ final kadenaSignV1RequestHandler = (String topic, dynamic parameters) async {
   // the client will automatically respond to the requester with a 
   // JsonRpcError.invalidParams error
   final parsedResponse = parameters;
+
+  // 1. If you want to fail silently, you can throw a WalletConnectErrorSilent
+  if (failSilently) {
+    throw WalletConnectErrorSilent();
+  }
 
   // 2. Show a modal to the user with the signature info: Allow approval/rejection
   bool userApproved = await showDialog( // This is an example, you will have to make your own changes to make it work.
@@ -159,7 +164,7 @@ final kadenaSignV1RequestHandler = (String topic, dynamic parameters) async {
   }
 }
 wcClient.registerRequestHandler(
-  namespace: 'kadena:mainnet01',
+  chainId: 'kadena:mainnet01',
   method: 'kadena_sign_v1',
   handler: kadenaSignV1RequestHandler,
 );
@@ -205,7 +210,7 @@ await wcClient.approveSession(
 // Error codes and reasons can be found here: https://docs.walletconnect.com/2.0/specs/clients/sign/error-codes
 await wcClient.rejectSession(
   id: id,
-  reason: Errors.getSdkError(Errors.USER_REJECTED_SIGN),
+  reason: Errors.getSdkError(Errors.USER_REJECTED),
 );
 
 // For auth, you can do the same thing: Present the UI to them, and have them approve the signature.
@@ -224,6 +229,7 @@ await wcClient.respondAuthRequest(
 // Error codes and reasons can be found here: https://docs.walletconnect.com/2.0/specs/clients/sign/error-codes
 await wcClient.respondAuthRequest(
   id: args.id,
+  iss: 'did:pkh:eip155:1:0x06C6A22feB5f8CcEDA0db0D593e6F26A3611d5fa',
   error: Errors.getSdkError(Errors.USER_REJECTED_AUTH),
 );
 
@@ -276,8 +282,10 @@ This library requires that you add the following to your `DebugProfile.entitleme
 
 # To Test
 
-Run tests using `flutter test`.
-Expected flutter version is: >`3.3.10`
+Run tests using `flutter test --dart-define=PROJECT_ID=xxx`.
+Expected flutter version is: >`3.0.0`
+
+To output logs while testing, you can set the `core.logger.level = Level.info` to see only warnings and errors, or `Level.info` to see all logs.
 
 # Commands Run in CI
 

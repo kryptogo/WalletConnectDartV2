@@ -1,6 +1,7 @@
 import 'package:json_annotation/json_annotation.dart';
 import 'package:walletconnect_flutter_v2/apis/core/relay_client/relay_client_models.dart';
 import 'package:walletconnect_flutter_v2/apis/models/basic_models.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/models/session_models.dart';
 
 part 'proposal_models.g.dart';
 
@@ -20,6 +21,11 @@ class RequiredNamespace {
       _$RequiredNamespaceFromJson(json);
 
   Map<String, dynamic> toJson() => _$RequiredNamespaceToJson(this);
+
+  @override
+  String toString() {
+    return 'RequiredNamespace(chains: $chains, methods: $methods, events: $events)';
+  }
 
   @override
   bool operator ==(Object other) {
@@ -70,6 +76,7 @@ class ProposalData {
   final Map<String, RequiredNamespace> optionalNamespaces;
   final Map<String, String>? sessionProperties;
   final String pairingTopic;
+  final Map<String, Namespace>? generatedNamespaces;
 
   const ProposalData({
     required this.id,
@@ -80,10 +87,16 @@ class ProposalData {
     required this.optionalNamespaces,
     required this.pairingTopic,
     this.sessionProperties,
+    this.generatedNamespaces,
   });
 
   factory ProposalData.fromJson(Map<String, dynamic> json) =>
       _$ProposalDataFromJson(json);
 
   Map<String, dynamic> toJson() => _$ProposalDataToJson(this);
+
+  @override
+  String toString() {
+    return 'ProposalData(id: $id, expiry: $expiry, relays: $relays, proposer: $proposer, requiredNamespaces: $requiredNamespaces, optionalNamespaces: $optionalNamespaces, sessionProperties: $sessionProperties, pairingTopic: $pairingTopic, generatedNamespaces: $generatedNamespaces)';
+  }
 }

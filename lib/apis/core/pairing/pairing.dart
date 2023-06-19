@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:event/event.dart';
-import 'package:walletconnect_flutter_v2/apis/core/store/generic_store.dart';
+import 'package:walletconnect_flutter_v2/apis/core/pairing/i_json_rpc_history.dart';
 import 'package:walletconnect_flutter_v2/apis/core/store/i_generic_store.dart';
 import 'package:walletconnect_flutter_v2/apis/core/crypto/crypto_models.dart';
 import 'package:walletconnect_flutter_v2/apis/core/i_core.dart';
@@ -10,8 +10,7 @@ import 'package:walletconnect_flutter_v2/apis/core/pairing/i_pairing.dart';
 import 'package:walletconnect_flutter_v2/apis/core/pairing/i_pairing_store.dart';
 import 'package:walletconnect_flutter_v2/apis/models/uri_parse_result.dart';
 import 'package:walletconnect_flutter_v2/apis/core/pairing/utils/pairing_models.dart';
-import 'package:walletconnect_flutter_v2/apis/core/pairing/pairing_store.dart';
-import 'package:walletconnect_flutter_v2/apis/core/pairing/utils/pairing_utils.dart';
+import 'package:walletconnect_flutter_v2/apis/core/pairing/utils/json_rpc_utils.dart';
 import 'package:walletconnect_flutter_v2/apis/core/relay_client/relay_client_models.dart';
 import 'package:walletconnect_flutter_v2/apis/models/json_rpc_error.dart';
 import 'package:walletconnect_flutter_v2/apis/models/json_rpc_request.dart';
@@ -21,6 +20,18 @@ import 'package:walletconnect_flutter_v2/apis/utils/constants.dart';
 import 'package:walletconnect_flutter_v2/apis/utils/errors.dart';
 import 'package:walletconnect_flutter_v2/apis/utils/method_constants.dart';
 import 'package:walletconnect_flutter_v2/apis/utils/walletconnect_utils.dart';
+
+class PendingRequestResponse {
+  Completer completer;
+  dynamic response;
+  JsonRpcError? error;
+
+  PendingRequestResponse({
+    required this.completer,
+    this.response,
+    this.error,
+  });
+}
 
 class Pairing implements IPairing {
   bool _initialized = false;
@@ -41,19 +52,22 @@ class Pairing implements IPairing {
   final Event<PairingEvent> onPairingExpire = Event<PairingEvent>();
 
   /// Stores all the pending requests
-  Map<int, Completer> pendingRequests = {};
+  Map<int, PendingRequestResponse> pendingRequests = {};
 
-  ICore core;
-  IPairingStore? pairings;
+  final ICore core;
+  final IPairingStore pairings;
+  final IJsonRpcHistory history;
 
   /// Stores the public key of Type 1 Envelopes for a topic
   /// Once a receiver public key has been used, it is removed from the store
   /// Thus, this store works under the assumption that a public key will only be used once
-  late IGenericStore<String> topicToReceiverPublicKey;
+  final IGenericStore<ReceiverPublicKey> topicToReceiverPublicKey;
 
-  Pairing(
-    this.core, {
-    this.pairings,
+  Pairing({
+    required this.core,
+    required this.pairings,
+    required this.history,
+    required this.topicToReceiverPublicKey,
   });
 
   @override
@@ -65,32 +79,14 @@ class Pairing implements IPairing {
     _registerRelayEvents();
     _registerExpirerEvents();
 
-    pairings ??= PairingStore(core);
-    topicToReceiverPublicKey = GenericStore(
-      core: core,
-      context: 'topicToReceiverPublicKey',
-      version: '1.0',
-      toJson: (String value) {
-        return value;
-      },
-      fromJson: (dynamic value) {
-        return value as String;
-      },
-    );
-
     await core.expirer.init();
-    await pairings!.init();
+    await pairings.init();
+    await history.init();
     await topicToReceiverPublicKey.init();
 
     await _cleanup();
 
-    // Resubscribe to all active pairings
-    final List<PairingInfo> activePairings = pairings!.getAll();
-    for (final PairingInfo pairing in activePairings) {
-      if (pairing.active) {
-        await core.relayClient.subscribe(topic: pairing.topic);
-      }
-    }
+    await _resubscribeAll();
 
     _initialized = true;
   }
@@ -127,7 +123,7 @@ class Pairing implements IPairing {
       ),
     );
 
-    await pairings!.set(topic, pairing);
+    await pairings.set(topic, pairing);
     await core.relayClient.subscribe(topic: topic);
     await core.expirer.set(topic, expiry);
 
@@ -150,9 +146,16 @@ class Pairing implements IPairing {
       WalletConnectConstants.FIVE_MINUTES,
     );
     final URIParseResult parsedUri = WalletConnectUtils.parseUri(uri);
+    if (parsedUri.version != URIVersion.v2) {
+      throw Errors.getInternalError(
+        Errors.MISSING_OR_INVALID,
+        context: 'URI is not WalletConnect version 2 URI',
+      );
+    }
+
     final String topic = parsedUri.topic;
-    final Relay relay = parsedUri.relay;
-    final String symKey = parsedUri.symKey;
+    final Relay relay = parsedUri.v2Data!.relay;
+    final String symKey = parsedUri.v2Data!.symKey;
     final PairingInfo pairing = PairingInfo(
       topic: topic,
       expiry: expiry,
@@ -161,8 +164,8 @@ class Pairing implements IPairing {
     );
 
     try {
-      PairingUtils.validateMethods(
-        parsedUri.methods,
+      JsonRpcUtils.validateMethods(
+        parsedUri.v2Data!.methods,
         routerMapRequest.values.toList(),
       );
     } on WalletConnectError catch (e) {
@@ -182,7 +185,7 @@ class Pairing implements IPairing {
       rethrow;
     }
 
-    await pairings!.set(topic, pairing);
+    await pairings.set(topic, pairing);
     await core.crypto.setSymKey(symKey, overrideTopic: topic);
     await core.relayClient.subscribe(topic: topic);
     await core.expirer.set(topic, expiry);
@@ -206,8 +209,16 @@ class Pairing implements IPairing {
     final int expiry = WalletConnectUtils.calculateExpiry(
       WalletConnectConstants.THIRTY_DAYS,
     );
+    // print('Activating pairing with topic: $topic');
 
-    await pairings!.update(
+    onPairingActivate.broadcast(
+      PairingActivateEvent(
+        topic: topic,
+        expiry: expiry,
+      ),
+    );
+
+    await pairings.update(
       topic,
       expiry: expiry,
       active: true,
@@ -242,11 +253,14 @@ class Pairing implements IPairing {
     int? expiry,
   }) async {
     _checkInitialized();
-    await topicToReceiverPublicKey.set(topic, publicKey);
-    await core.expirer.set(
-      publicKey,
-      WalletConnectUtils.calculateExpiry(
-        expiry ?? WalletConnectConstants.FIVE_MINUTES,
+    await topicToReceiverPublicKey.set(
+      topic,
+      ReceiverPublicKey(
+        topic: topic,
+        publicKey: publicKey,
+        expiry: WalletConnectUtils.calculateExpiry(
+          expiry ?? WalletConnectConstants.FIVE_MINUTES,
+        ),
       ),
     );
   }
@@ -269,14 +283,7 @@ class Pairing implements IPairing {
       );
     }
 
-    onPairingActivate.broadcast(
-      PairingActivateEvent(
-        topic: topic,
-        expiry: expiry,
-      ),
-    );
-
-    await pairings!.update(
+    await pairings.update(
       topic,
       expiry: expiry,
     );
@@ -292,7 +299,7 @@ class Pairing implements IPairing {
     required PairingMetadata metadata,
   }) async {
     _checkInitialized();
-    await pairings!.update(
+    await pairings.update(
       topic,
       metadata: metadata,
     );
@@ -300,7 +307,7 @@ class Pairing implements IPairing {
 
   @override
   List<PairingInfo> getPairings() {
-    return pairings!.getAll();
+    return pairings.getAll();
   }
 
   @override
@@ -309,7 +316,7 @@ class Pairing implements IPairing {
 
     await _isValidPing(topic);
 
-    if (pairings!.has(topic)) {
+    if (pairings.has(topic)) {
       // try {
       final bool _ = await sendRequest(
         topic,
@@ -324,7 +331,7 @@ class Pairing implements IPairing {
     _checkInitialized();
 
     await _isValidDisconnect(topic);
-    if (pairings!.has(topic)) {
+    if (pairings.has(topic)) {
       // Send the request to delete the pairing, we don't care if it fails
       try {
         sendRequest(
@@ -335,7 +342,7 @@ class Pairing implements IPairing {
       } catch (_) {}
 
       // Delete the pairing
-      await pairings!.delete(topic);
+      await pairings.delete(topic);
 
       onPairingDelete.broadcast(
         PairingEvent(
@@ -347,11 +354,12 @@ class Pairing implements IPairing {
 
   @override
   IPairingStore getStore() {
-    return pairings!;
+    return pairings;
   }
 
+  @override
   Future<void> isValidPairingTopic({required String topic}) async {
-    if (!pairings!.has(topic)) {
+    if (!pairings.has(topic)) {
       throw Errors.getInternalError(
         Errors.NO_MATCHING_KEY,
         context: "pairing topic doesn't exist: $topic",
@@ -361,27 +369,32 @@ class Pairing implements IPairing {
     if (await core.expirer.checkAndExpire(topic)) {
       throw Errors.getInternalError(
         Errors.EXPIRED,
-        context: "pairing topic: $topic",
+        context: 'pairing topic: $topic',
       );
     }
   }
 
   // RELAY COMMUNICATION HELPERS
 
+  @override
   Future sendRequest(
     String topic,
     String method,
-    Map<String, dynamic> params, {
+    dynamic params, {
     int? id,
     int? ttl,
     EncodeOptions? encodeOptions,
   }) async {
-    final Map<String, dynamic> payload = PairingUtils.formatJsonRpcRequest(
+    core.logger.v(
+      'pairing sendResult, id: $id topic: $topic, method: $method, params: $params, ttl: $ttl',
+    );
+
+    final Map<String, dynamic> payload = JsonRpcUtils.formatJsonRpcRequest(
       method,
       params,
       id: id,
     );
-    final JsonRpcRequest request = JsonRpcRequest.fromJson(payload);
+    // print('sending request: $payload');
 
     final String? message = await core.crypto.encode(
       topic,
@@ -397,10 +410,16 @@ class Pairing implements IPairing {
     if (ttl != null) {
       opts = opts.copyWith(ttl: ttl);
     }
-    await core.history.set(
-      topic,
-      request,
+
+    // print('adding payload to pending requests: ${payload['id']}');
+    final PendingRequestResponse resp = PendingRequestResponse(
+      completer: Completer(),
     );
+    resp.completer.future.catchError((_) {
+      // Catch the error so that it won't throw an uncaught error
+      // print('inner caught error: $err');
+    });
+    pendingRequests[payload['id']] = resp;
     // print('sent request');
     await core.relayClient.publish(
       topic: topic,
@@ -408,22 +427,28 @@ class Pairing implements IPairing {
       ttl: opts.ttl,
       tag: opts.tag,
     );
-    final Completer completer = Completer();
-    pendingRequests[payload['id']] = completer;
 
     // Get the result from the completer, if it's an error, throw it
     try {
-      final result = await completer.future;
-      // if (result is JsonRpcError) {
-      //   throw result;
-      // }
+      // print('checking error');
+      if (resp.error != null) {
+        throw resp.error!;
+      }
 
-      return result;
+      // print('checking if completed');
+      if (resp.completer.isCompleted) {
+        return resp.response;
+      }
+
+      // print('waiting for response');
+      return await resp.completer.future;
     } catch (e) {
+      // print('caught error: $e');
       rethrow;
     }
   }
 
+  @override
   Future<void> sendResult(
     int id,
     String topic,
@@ -431,8 +456,11 @@ class Pairing implements IPairing {
     dynamic result, {
     EncodeOptions? encodeOptions,
   }) async {
-    // print('sending result');
-    final Map<String, dynamic> payload = PairingUtils.formatJsonRpcResponse(
+    core.logger.v(
+      'pairing sendResult, id: $id topic: $topic, method: $method, result: $result',
+    );
+    final Map<String, dynamic> payload =
+        JsonRpcUtils.formatJsonRpcResponse<dynamic>(
       id,
       result,
     );
@@ -453,9 +481,9 @@ class Pairing implements IPairing {
       ttl: opts.ttl,
       tag: opts.tag,
     );
-    // await core.history.resolve(payload);
   }
 
+  @override
   Future<void> sendError(
     int id,
     String topic,
@@ -463,7 +491,11 @@ class Pairing implements IPairing {
     JsonRpcError error, {
     EncodeOptions? encodeOptions,
   }) async {
-    final Map<String, dynamic> payload = PairingUtils.formatJsonRpcError(
+    core.logger.v(
+      'pairing sendError, id: $id topic: $topic, method: $method, error: $error',
+    );
+
+    final Map<String, dynamic> payload = JsonRpcUtils.formatJsonRpcError(
       id,
       error,
     );
@@ -487,14 +519,24 @@ class Pairing implements IPairing {
       ttl: opts.ttl,
       tag: opts.tag,
     );
-    await core.history.resolve(payload);
   }
 
   /// ---- Private Helpers ---- ///
 
+  Future<void> _resubscribeAll() async {
+    // Resubscribe to all active pairings
+    final List<PairingInfo> activePairings = pairings.getAll();
+    for (final PairingInfo pairing in activePairings) {
+      if (pairing.active) {
+        // print('Resubscribing to topic: ${pairing.topic}');
+        await core.relayClient.subscribe(topic: pairing.topic);
+      }
+    }
+  }
+
   Future<void> _deletePairing(String topic, bool expirerHasDeleted) async {
     await core.relayClient.unsubscribe(topic: topic);
-    await pairings!.delete(topic);
+    await pairings.delete(topic);
     await core.crypto.deleteSymKey(topic);
     if (expirerHasDeleted) {
       await core.expirer.delete(topic);
@@ -507,18 +549,35 @@ class Pairing implements IPairing {
           (PairingInfo info) => WalletConnectUtils.isExpired(info.expiry),
         )
         .toList();
-    expiredPairings.map(
-      (PairingInfo e) async => await pairings!.delete(e.topic),
-    );
+    for (final PairingInfo pairing in expiredPairings) {
+      // print('deleting expired pairing: ${pairing.topic}');
+      await _deletePairing(pairing.topic, true);
+    }
+
+    // Cleanup all history records
+    final List<JsonRpcRecord> expiredHistory = history
+        .getAll()
+        .where(
+          (record) => WalletConnectUtils.isExpired(record.expiry ?? -1),
+        )
+        .toList();
+    // Loop through the expired records and delete them
+    for (final JsonRpcRecord record in expiredHistory) {
+      // print('deleting expired history record: ${record.id}');
+      await history.delete(record.id.toString());
+    }
 
     // Cleanup all of the expired receiver public keys
-    final List<String> expiredReceiverPublicKeys = topicToReceiverPublicKey
-        .getAll()
-        .where((key) => WalletConnectUtils.isExpired(core.expirer.get(key)))
-        .toList();
-    expiredReceiverPublicKeys.map(
-      (String key) async => await topicToReceiverPublicKey.delete(key),
-    );
+    final List<ReceiverPublicKey> expiredReceiverPublicKeys =
+        topicToReceiverPublicKey
+            .getAll()
+            .where((receiver) => WalletConnectUtils.isExpired(receiver.expiry))
+            .toList();
+    // Loop through the expired receiver public keys and delete them
+    for (final ReceiverPublicKey receiver in expiredReceiverPublicKeys) {
+      // print('deleting expired receiver public key: $receiver');
+      await topicToReceiverPublicKey.delete(receiver.topic);
+    }
   }
 
   void _checkInitialized() {
@@ -530,21 +589,26 @@ class Pairing implements IPairing {
   /// ---- Relay Event Router ---- ///
 
   Map<String, RegisteredFunction> routerMapRequest = {};
-  // Map<String, Function> routerMapResponse = {};
 
   void _registerRelayEvents() {
+    core.relayClient.onRelayClientConnect.subscribe(_onRelayConnect);
     core.relayClient.onRelayClientMessage.subscribe(_onMessageEvent);
 
     register(
       method: MethodConstants.WC_PAIRING_PING,
       function: _onPairingPingRequest,
-      type: ProtocolType.Pair,
+      type: ProtocolType.pair,
     );
     register(
       method: MethodConstants.WC_PAIRING_DELETE,
       function: _onPairingDeleteRequest,
-      type: ProtocolType.Pair,
+      type: ProtocolType.pair,
     );
+  }
+
+  Future<void> _onRelayConnect(EventArgs? args) async {
+    // print('Pairing: Relay connected');
+    await _resubscribeAll();
   }
 
   void _onMessageEvent(MessageEvent? event) async {
@@ -553,7 +617,8 @@ class Pairing implements IPairing {
     }
 
     // If we have a reciever public key for the topic, use it
-    String? receiverPublicKey = topicToReceiverPublicKey.get(event.topic);
+    ReceiverPublicKey? receiverPublicKey =
+        topicToReceiverPublicKey.get(event.topic);
     // If there was a public key, delete it. One use.
     if (receiverPublicKey != null) {
       await topicToReceiverPublicKey.delete(event.topic);
@@ -564,18 +629,19 @@ class Pairing implements IPairing {
       event.topic,
       event.message,
       options: DecodeOptions(
-        receiverPublicKey: receiverPublicKey,
+        receiverPublicKey: receiverPublicKey?.publicKey,
       ),
     );
 
     if (payloadString == null) {
       return;
     }
+    // print(payloadString);
 
     Map<String, dynamic> data = jsonDecode(payloadString);
 
     // If it's an rpc request, handle it
-    // print(data);
+    // print('Pairing: Received data: $data');
     if (data.containsKey('method')) {
       final request = JsonRpcRequest.fromJson(data);
       if (routerMapRequest.containsKey(request.method)) {
@@ -587,17 +653,29 @@ class Pairing implements IPairing {
     // Otherwise handle it as a response
     else {
       final response = JsonRpcResponse.fromJson(data);
-      final JsonRpcRecord? record = core.history.get(response.id);
-      if (record == null) {
-        return;
-      }
 
-      // print('got here');
+      // Only handle the response if we have a record of the request
+      // final JsonRpcRecord? record = history.get(response.id.toString());
+      // // print(record);
+      // if (record == null) {
+      //   return;
+      // }
+
+      // print(
+      //   'pendingRequests: ${pendingRequests.keys} has ${response.id} is ${pendingRequests.containsKey(response.id)}',
+      // );
       if (pendingRequests.containsKey(response.id)) {
         if (response.error != null) {
-          pendingRequests.remove(response.id)!.completeError(response.error!);
+          pendingRequests[response.id]!.error = response.error;
+          pendingRequests[response.id]!
+              .completer
+              .completeError(response.error!);
         } else {
-          pendingRequests.remove(response.id)!.complete(response.result);
+          // print(
+          //   'completing: ${response.result}',
+          // );
+          pendingRequests[response.id]!.response = response.result;
+          pendingRequests[response.id]!.completer.complete(response.result);
         }
       }
     }
@@ -648,7 +726,7 @@ class Pairing implements IPairing {
         request.method,
         true,
       );
-      await pairings!.delete(topic);
+      await pairings.delete(topic);
       onPairingDelete.broadcast(
         PairingEvent(
           id: id,
@@ -701,7 +779,7 @@ class Pairing implements IPairing {
       return;
     }
 
-    if (pairings!.has(event.target)) {
+    if (pairings.has(event.target)) {
       // Clean up the pairing
       await _deletePairing(event.target, true);
       onPairingExpire.broadcast(

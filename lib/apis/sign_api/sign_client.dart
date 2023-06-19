@@ -18,7 +18,6 @@ import 'package:walletconnect_flutter_v2/apis/sign_api/models/sign_client_models
 import 'package:walletconnect_flutter_v2/apis/sign_api/models/sign_client_events.dart';
 import 'package:walletconnect_flutter_v2/apis/sign_api/models/session_models.dart';
 import 'package:walletconnect_flutter_v2/apis/sign_api/sessions.dart';
-import 'package:walletconnect_flutter_v2/apis/sign_api/utils/sign_constants.dart';
 import 'package:walletconnect_flutter_v2/apis/utils/constants.dart';
 
 class SignClient implements ISignClient {
@@ -43,6 +42,9 @@ class SignClient implements ISignClient {
   Event<SessionPing> get onSessionPing => engine.onSessionPing;
   @override
   Event<SessionProposalEvent> get onSessionProposal => engine.onSessionProposal;
+  @override
+  Event<SessionProposalErrorEvent> get onSessionProposalError =>
+      engine.onSessionProposalError;
   @override
   Event<SessionProposalEvent> get onProposalExpire => engine.onProposalExpire;
   @override
@@ -91,24 +93,25 @@ class SignClient implements ISignClient {
       core: core,
       metadata: metadata,
       proposals: GenericStore(
-        core: core,
-        context: SignConstants.CONTEXT_PROPOSALS,
-        version: SignConstants.VERSION_PROPOSALS,
-        toJson: (ProposalData value) {
-          return value.toJson();
-        },
+        storage: core.storage,
+        context: StoreVersions.CONTEXT_PROPOSALS,
+        version: StoreVersions.VERSION_PROPOSALS,
         fromJson: (dynamic value) {
           return ProposalData.fromJson(value);
         },
       ),
-      sessions: Sessions(core),
-      pendingRequests: GenericStore(
-        core: core,
-        context: SignConstants.CONTEXT_PENDING_REQUESTS,
-        version: SignConstants.VERSION_PENDING_REQUESTS,
-        toJson: (SessionRequest value) {
-          return value.toJson();
+      sessions: Sessions(
+        storage: core.storage,
+        context: StoreVersions.CONTEXT_SESSIONS,
+        version: StoreVersions.VERSION_SESSIONS,
+        fromJson: (dynamic value) {
+          return SessionData.fromJson(value);
         },
+      ),
+      pendingRequests: GenericStore(
+        storage: core.storage,
+        context: StoreVersions.CONTEXT_PENDING_REQUESTS,
+        version: StoreVersions.VERSION_PENDING_REQUESTS,
         fromJson: (dynamic value) {
           return SessionRequest.fromJson(value);
         },
@@ -164,7 +167,7 @@ class SignClient implements ISignClient {
   }
 
   @override
-  Future<ApproveResponse> approveSession({
+  Future<ApproveResponse> approve({
     required int id,
     required Map<String, Namespace> namespaces,
     String? relayProtocol,
@@ -181,7 +184,7 @@ class SignClient implements ISignClient {
   }
 
   @override
-  Future<void> rejectSession({
+  Future<void> reject({
     required int id,
     required WalletConnectError reason,
   }) async {
@@ -196,7 +199,7 @@ class SignClient implements ISignClient {
   }
 
   @override
-  Future<void> updateSession({
+  Future<void> update({
     required String topic,
     required Map<String, Namespace> namespaces,
   }) async {
@@ -212,7 +215,7 @@ class SignClient implements ISignClient {
   }
 
   @override
-  Future<void> extendSession({
+  Future<void> extend({
     required String topic,
   }) async {
     try {
@@ -240,21 +243,6 @@ class SignClient implements ISignClient {
   }
 
   @override
-  Future<void> respondSessionRequest({
-    required String topic,
-    required JsonRpcResponse response,
-  }) {
-    try {
-      return engine.respondSessionRequest(
-        topic: topic,
-        response: response,
-      );
-    } catch (e) {
-      rethrow;
-    }
-  }
-
-  @override
   Future request({
     required String topic,
     required String chainId,
@@ -265,6 +253,21 @@ class SignClient implements ISignClient {
         topic: topic,
         chainId: chainId,
         request: request,
+      );
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  @override
+  Future<void> respond({
+    required String topic,
+    required JsonRpcResponse response,
+  }) {
+    try {
+      return engine.respondSessionRequest(
+        topic: topic,
+        response: response,
       );
     } catch (e) {
       rethrow;
@@ -289,7 +292,37 @@ class SignClient implements ISignClient {
   }
 
   @override
-  Future<void> emitSessionEvent({
+  void registerEventEmitter({
+    required String chainId,
+    required String event,
+  }) {
+    try {
+      return engine.registerEventEmitter(
+        chainId: chainId,
+        event: event,
+      );
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  @override
+  void registerAccount({
+    required String chainId,
+    required String accountAddress,
+  }) {
+    try {
+      return engine.registerAccount(
+        chainId: chainId,
+        accountAddress: accountAddress,
+      );
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  @override
+  Future<void> emit({
     required String topic,
     required String chainId,
     required SessionEventParams event,
@@ -317,7 +350,7 @@ class SignClient implements ISignClient {
   }
 
   @override
-  Future<void> disconnectSession({
+  Future<void> disconnect({
     required String topic,
     required WalletConnectError reason,
   }) async {

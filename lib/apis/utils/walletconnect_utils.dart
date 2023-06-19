@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:universal_io/io.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:walletconnect_flutter_v2/apis/core/relay_client/relay_client_models.dart';
 import 'package:walletconnect_flutter_v2/apis/models/basic_models.dart';
 import 'package:walletconnect_flutter_v2/apis/models/uri_parse_result.dart';
@@ -29,7 +30,21 @@ class WalletConnectUtils {
   }
 
   static String getId() {
-    return 'unknown'; // TODO: implement
+    if (Platform.isAndroid) {
+      return 'android';
+    } else if (Platform.isIOS) {
+      return 'ios';
+    } else if (Platform.isLinux) {
+      return 'linux';
+    } else if (Platform.isMacOS) {
+      return 'macos';
+    } else if (Platform.isWindows) {
+      return 'windows';
+    } else if (kIsWeb) {
+      return 'web';
+    } else {
+      return 'unknown';
+    }
   }
 
   static String formatUA(
@@ -41,7 +56,7 @@ class WalletConnectUtils {
     String id = getId();
     return <String>[
       [protocol, version].join('-'),
-      <String>['Dart', sdkVersion].join('-'),
+      <String>['Flutter', sdkVersion].join('-'),
       os,
       id,
     ].join('/');
@@ -96,20 +111,46 @@ class WalletConnectUtils {
     if (methods.length == 1 && methods[0].isEmpty) {
       methods = [];
     }
+    final URIVersion? version;
+    switch (splitParams[1]) {
+      case '1':
+        version = URIVersion.v1;
+        break;
+      case '2':
+        version = URIVersion.v2;
+        break;
+      default:
+        version = null;
+    }
+    final URIV1ParsedData? v1Data;
+    final URIV2ParsedData? v2Data;
+    if (version == URIVersion.v1) {
+      v1Data = URIV1ParsedData(
+        key: uri.queryParameters['key']!,
+        bridge: uri.queryParameters['bridge']!,
+      );
+      v2Data = null;
+    } else {
+      v1Data = null;
+      v2Data = URIV2ParsedData(
+        symKey: uri.queryParameters['symKey']!,
+        relay: Relay(
+          uri.queryParameters['relay-protocol']!,
+          data: uri.queryParameters.containsKey('relay-data')
+              ? uri.queryParameters['relay-data']
+              : null,
+        ),
+        methods: methods,
+      );
+    }
+
     URIParseResult ret = URIParseResult(
       protocol: protocol,
-      version: splitParams[1],
+      version: version,
       topic: splitParams[0],
-      symKey: uri.queryParameters['symKey']!,
-      relay: Relay(
-        uri.queryParameters['relay-protocol']!,
-        data: uri.queryParameters.containsKey('relay-data')
-            ? uri.queryParameters['relay-data']
-            : null,
-      ),
-      methods: methods,
+      v1Data: v1Data,
+      v2Data: v2Data,
     );
-    // print(ret);
     return ret;
   }
 

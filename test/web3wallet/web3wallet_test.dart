@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logger/logger.dart';
 import 'package:walletconnect_flutter_v2/walletconnect_flutter_v2.dart';
 
+import '../shared/shared_test_utils.dart';
 import '../shared/shared_test_values.dart';
 import 'web3wallet_helpers.dart';
 
@@ -14,6 +16,8 @@ void main() {
           relayUrl: TEST_RELAY_URL,
           memoryStore: true,
           metadata: metadata,
+          logLevel: Level.info,
+          httpClient: getHttpWrapper(),
         ),
   ];
   final List<Future<IWeb3Wallet> Function(PairingMetadata)> walletCreators = [
@@ -22,6 +26,8 @@ void main() {
           relayUrl: TEST_RELAY_URL,
           memoryStore: true,
           metadata: metadata,
+          logLevel: Level.info,
+          httpClient: getHttpWrapper(),
         ),
   ];
 
@@ -47,7 +53,7 @@ void runTests({
 
     setUp(() async {
       clientA = await web3appCreator(
-        PairingMetadata(
+        const PairingMetadata(
           name: 'App A (Proposer, dapp)',
           description: 'Description of Proposer App run by client A',
           url: 'https://walletconnect.com',
@@ -55,7 +61,7 @@ void runTests({
         ),
       );
       clientB = await web3walletCreator(
-        PairingMetadata(
+        const PairingMetadata(
           name: 'App B (Responder, Wallet)',
           description: 'Description of Proposer App run by client B',
           url: 'https://walletconnect.com',
@@ -93,10 +99,14 @@ void runTests({
         final connectionInfo = await Web3WalletHelpers.testWeb3Wallet(
           clientA,
           clientB,
+          qrCodeScanLatencyMs: 1000,
         );
 
+        // print('swag 1');
         await completer.future;
+        // print('swag 2');
         await completerBSign.future;
+        // print('swag 3');
         await completerBAuth.future;
 
         expect(counterA, 1);
@@ -126,8 +136,11 @@ void runTests({
           pairingTopic: connectionInfo.pairing.topic,
         );
 
+        // print('swag 4');
         await completer.future;
+        // print('swag 5');
         await completerBSign.future;
+        // print('swag 6');
         await completerBAuth.future;
 
         expect(counterA, 2);

@@ -4,21 +4,21 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:walletconnect_flutter_v2/apis/core/core.dart';
 import 'package:walletconnect_flutter_v2/apis/core/i_core.dart';
 import 'package:walletconnect_flutter_v2/apis/core/pairing/utils/pairing_models.dart';
-import 'package:walletconnect_flutter_v2/apis/core/pairing/utils/pairing_utils.dart';
+import 'package:walletconnect_flutter_v2/apis/core/pairing/utils/json_rpc_utils.dart';
 import 'package:walletconnect_flutter_v2/apis/core/relay_client/relay_client_models.dart';
-import 'package:walletconnect_flutter_v2/apis/models/json_rpc_error.dart';
 import 'package:walletconnect_flutter_v2/apis/models/basic_models.dart';
 import 'package:walletconnect_flutter_v2/apis/models/uri_parse_result.dart';
 import 'package:walletconnect_flutter_v2/apis/utils/constants.dart';
 import 'package:walletconnect_flutter_v2/apis/utils/method_constants.dart';
 import 'package:walletconnect_flutter_v2/apis/utils/walletconnect_utils.dart';
 
+import '../shared/shared_test_utils.dart';
 import '../shared/shared_test_values.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test("Format and parses URI correctly", () {
+  test('Format and parses URI correctly', () {
     Uri response = WalletConnectUtils.formatUri(
         protocol: 'wc',
         version: '2',
@@ -36,14 +36,14 @@ void main() {
 
     URIParseResult parsed = WalletConnectUtils.parseUri(response);
     expect(parsed.protocol, 'wc');
-    expect(parsed.version, '2');
+    expect(parsed.version, URIVersion.v2);
     expect(parsed.topic, 'abc');
-    expect(parsed.symKey, 'xyz');
-    expect(parsed.relay.protocol, 'irn');
-    expect(parsed.methods.length, 3);
-    expect(parsed.methods[0], MethodConstants.WC_SESSION_PROPOSE);
-    expect(parsed.methods[1], MethodConstants.WC_AUTH_REQUEST);
-    expect(parsed.methods[2], 'wc_authBatchRequest');
+    expect(parsed.v2Data!.symKey, 'xyz');
+    expect(parsed.v2Data!.relay.protocol, 'irn');
+    expect(parsed.v2Data!.methods.length, 3);
+    expect(parsed.v2Data!.methods[0], MethodConstants.WC_SESSION_PROPOSE);
+    expect(parsed.v2Data!.methods[1], MethodConstants.WC_AUTH_REQUEST);
+    expect(parsed.v2Data!.methods[2], 'wc_authBatchRequest');
 
     response = WalletConnectUtils.formatUri(
       protocol: 'wc',
@@ -60,20 +60,35 @@ void main() {
 
     parsed = WalletConnectUtils.parseUri(response);
     expect(parsed.protocol, 'wc');
-    expect(parsed.version, '2');
+    expect(parsed.version, URIVersion.v2);
     expect(parsed.topic, 'abc');
-    expect(parsed.symKey, 'xyz');
-    expect(parsed.relay.protocol, 'irn');
-    expect(parsed.methods.length, 0);
+    expect(parsed.v2Data!.symKey, 'xyz');
+    expect(parsed.v2Data!.relay.protocol, 'irn');
+    expect(parsed.v2Data!.methods.length, 0);
 
     // Can parse URI with missing methods param
     response = Uri.parse('wc:abc@2?relay-protocol=irn&symKey=xyz');
     expect(parsed.protocol, 'wc');
-    expect(parsed.version, '2');
+    expect(parsed.version, URIVersion.v2);
     expect(parsed.topic, 'abc');
-    expect(parsed.symKey, 'xyz');
-    expect(parsed.relay.protocol, 'irn');
-    expect(parsed.methods.length, 0);
+    expect(parsed.v2Data!.symKey, 'xyz');
+    expect(parsed.v2Data!.relay.protocol, 'irn');
+    expect(parsed.v2Data!.methods.length, 0);
+
+    // V1 testing
+    parsed = WalletConnectUtils.parseUri(Uri.parse(
+        'wc:00e46b69-d0cc-4b3e-b6a2-cee442f97188@1?bridge=https%3A%2F%2Fbridge.walletconnect.org&key=91303dedf64285cbbaf9120f6e9d160a5c8aa3deb67017a3874cd272323f48ae'));
+    expect(parsed.protocol, 'wc');
+    expect(parsed.version, URIVersion.v1);
+    expect(parsed.topic, '00e46b69-d0cc-4b3e-b6a2-cee442f97188');
+    expect(parsed.v2Data, null);
+    expect(parsed.v1Data!.key,
+        '91303dedf64285cbbaf9120f6e9d160a5c8aa3deb67017a3874cd272323f48ae');
+    expect(parsed.v1Data!.bridge, 'https://bridge.walletconnect.org');
+  });
+
+  group('history', () {
+    test('deletes old records', () async {});
   });
 
   group('Pairing API', () {
@@ -85,11 +100,13 @@ void main() {
         relayUrl: TEST_RELAY_URL,
         projectId: TEST_PROJECT_ID,
         memoryStore: true,
+        httpClient: getHttpWrapper(),
       );
       coreB = Core(
         relayUrl: TEST_RELAY_URL,
         projectId: TEST_PROJECT_ID,
         memoryStore: true,
+        httpClient: getHttpWrapper(),
       );
       await coreA.start();
       await coreB.start();
@@ -134,17 +151,17 @@ void main() {
 
         final URIParseResult parsed = WalletConnectUtils.parseUri(response.uri);
         expect(parsed.protocol, 'wc');
-        expect(parsed.version, '2');
-        expect(parsed.relay.protocol, 'irn');
-        expect(parsed.methods.length, 3);
-        expect(parsed.methods[0], MethodConstants.WC_SESSION_PROPOSE);
-        expect(parsed.methods[1], MethodConstants.WC_AUTH_REQUEST);
-        expect(parsed.methods[2], 'wc_authBatchRequest');
+        expect(parsed.version, URIVersion.v2);
+        expect(parsed.v2Data!.relay.protocol, 'irn');
+        expect(parsed.v2Data!.methods.length, 3);
+        expect(parsed.v2Data!.methods[0], MethodConstants.WC_SESSION_PROPOSE);
+        expect(parsed.v2Data!.methods[1], MethodConstants.WC_AUTH_REQUEST);
+        expect(parsed.v2Data!.methods[2], 'wc_authBatchRequest');
       });
     });
 
-    group('Pair', () {
-      test("can pair via provided URI", () async {
+    group('pair', () {
+      test('can pair via provided URI', () async {
         final CreateResponse response = await coreA.pairing.create();
 
         Completer completer = Completer();
@@ -154,7 +171,7 @@ void main() {
           completer.complete();
         });
 
-        await coreB.pairing.pair(uri: response.uri);
+        await coreB.pairing.pair(uri: response.uri, activatePairing: false);
         await completer.future;
 
         expect(counter, 1);
@@ -169,7 +186,7 @@ void main() {
         expect(coreB.pairing.getPairings()[0].active, false);
       });
 
-      test("can pair via provided URI", () async {
+      test('can pair via provided URI', () async {
         final CreateResponse response = await coreA.pairing.create();
 
         await coreB.pairing.pair(uri: response.uri, activatePairing: true);
@@ -178,10 +195,10 @@ void main() {
       });
     });
 
-    test("can activate pairing", () async {
+    test('can activate pairing', () async {
       final CreateResponse response = await coreA.pairing.create();
 
-      await coreB.pairing.pair(uri: response.uri);
+      await coreB.pairing.pair(uri: response.uri, activatePairing: false);
       PairingInfo? pairing = coreB.pairing.getStore().get(response.topic);
 
       expect(pairing != null, true);
@@ -194,9 +211,9 @@ void main() {
       expect(pairing2.expiry > expiry, true);
     });
 
-    test("can update expiry", () async {
+    test('can update expiry', () async {
       final CreateResponse response = await coreA.pairing.create();
-      final int mockExpiry = 1111111;
+      const int mockExpiry = 1111111;
 
       await coreA.pairing
           .updateExpiry(topic: response.topic, expiry: mockExpiry);
@@ -225,9 +242,9 @@ void main() {
       );
     });
 
-    test("can update peer metadata", () async {
+    test('can update peer metadata', () async {
       final CreateResponse response = await coreA.pairing.create();
-      PairingMetadata mock = PairingMetadata(
+      PairingMetadata mock = const PairingMetadata(
         name: 'Mock',
         description: 'Mock Metadata',
         url: 'https://mockurl.com',
@@ -245,7 +262,7 @@ void main() {
       );
     });
 
-    test("clients can ping each other", () async {
+    test('clients can ping each other', () async {
       final CreateResponse response = await coreA.pairing.create();
       // await coreB.pairing.pair(uri: response.uri);
 
@@ -262,7 +279,7 @@ void main() {
       await completer.future;
     });
 
-    test("can disconnect from a known pairing", () async {
+    test('can disconnect from a known pairing', () async {
       final CreateResponse response = await coreA.pairing.create();
       expect(coreA.pairing.getStore().getAll().length, 1);
       expect(coreB.pairing.getStore().getAll().length, 0);
@@ -306,6 +323,7 @@ void main() {
           relayUrl: TEST_RELAY_URL,
           projectId: TEST_PROJECT_ID,
           memoryStore: true,
+          httpClient: getHttpWrapper(),
         );
         await coreA.start();
       });
@@ -315,7 +333,7 @@ void main() {
       });
 
       group('Pairing', () {
-        test("throws when no empty/invalid uri is provided", () async {
+        test('throws when no empty/invalid uri is provided', () async {
           expect(
             () async => await coreA.pairing.pair(uri: Uri.parse('')),
             throwsA(
@@ -340,7 +358,7 @@ void main() {
 
         test("throws when required methods aren't contained in registered",
             () async {
-          final String uriWithMethods =
+          const String uriWithMethods =
               '$TEST_URI&methods=[wc_sessionPropose],[wc_authRequest,wc_authBatchRequest]';
           expect(
             () async =>
@@ -357,7 +375,7 @@ void main() {
           coreA.pairing.register(
             method: 'wc_sessionPropose',
             function: (s, r) => {},
-            type: ProtocolType.Sign,
+            type: ProtocolType.sign,
           );
           expect(
             () async =>
@@ -374,7 +392,7 @@ void main() {
           coreA.pairing.register(
             method: 'wc_authRequest',
             function: (s, r) => {},
-            type: ProtocolType.Auth,
+            type: ProtocolType.auth,
           );
           expect(
             () async =>
@@ -390,41 +408,41 @@ void main() {
           );
         });
 
-        test("succeeds when required methods are contained in registered",
+        test('succeeds when required methods are contained in registered',
             () async {
           List<RegisteredFunction> registeredFunctions = [
             RegisteredFunction(
               method: MethodConstants.WC_SESSION_PROPOSE,
               function: (s, r) => {},
-              type: ProtocolType.Sign,
+              type: ProtocolType.sign,
             ),
             RegisteredFunction(
               method: 'wc_authRequest',
               function: (s, r) => {},
-              type: ProtocolType.Sign,
+              type: ProtocolType.sign,
             ),
             RegisteredFunction(
               method: 'wc_authBatchRequest',
               function: (s, r) => {},
-              type: ProtocolType.Sign,
+              type: ProtocolType.sign,
             )
           ];
           expect(
-            PairingUtils.validateMethods(
+            JsonRpcUtils.validateMethods(
               ['wc_sessionPropose'],
               registeredFunctions,
             ),
             true,
           );
           expect(
-            PairingUtils.validateMethods(
+            JsonRpcUtils.validateMethods(
               ['wc_sessionPropose', 'wc_authRequest'],
               registeredFunctions,
             ),
             true,
           );
           expect(
-            PairingUtils.validateMethods(
+            JsonRpcUtils.validateMethods(
               ['wc_sessionPropose', 'wc_authRequest', 'wc_authBatchRequest'],
               registeredFunctions,
             ),
@@ -434,7 +452,7 @@ void main() {
       });
 
       group('Ping', () {
-        test("throws when unused topic is provided", () async {
+        test('throws when unused topic is provided', () async {
           expect(
             () async => await coreA.pairing.ping(topic: 'abc'),
             throwsA(
@@ -448,7 +466,7 @@ void main() {
       });
 
       group('Disconnect', () {
-        test("throws when unused topic is provided", () async {
+        test('throws when unused topic is provided', () async {
           expect(
             () async => await coreA.pairing.disconnect(topic: 'abc'),
             throwsA(
