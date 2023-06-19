@@ -1,27 +1,28 @@
 import 'dart:async';
 
 import 'package:event/event.dart';
-import 'package:walletconnect_flutter_v2/apis/core/store/i_generic_store.dart';
-import 'package:walletconnect_flutter_v2/apis/core/pairing/i_pairing_store.dart';
-import 'package:walletconnect_flutter_v2/apis/core/pairing/utils/pairing_utils.dart';
-import 'package:walletconnect_flutter_v2/apis/core/pairing/utils/pairing_models.dart';
 import 'package:walletconnect_flutter_v2/apis/core/i_core.dart';
+import 'package:walletconnect_flutter_v2/apis/core/pairing/i_pairing_store.dart';
+import 'package:walletconnect_flutter_v2/apis/core/pairing/utils/json_rpc_utils.dart';
+import 'package:walletconnect_flutter_v2/apis/core/pairing/utils/pairing_models.dart';
 import 'package:walletconnect_flutter_v2/apis/core/relay_client/relay_client_models.dart';
+import 'package:walletconnect_flutter_v2/apis/core/store/i_generic_store.dart';
+import 'package:walletconnect_flutter_v2/apis/models/basic_models.dart';
 import 'package:walletconnect_flutter_v2/apis/models/json_rpc_error.dart';
 import 'package:walletconnect_flutter_v2/apis/models/json_rpc_request.dart';
-import 'package:walletconnect_flutter_v2/apis/models/basic_models.dart';
 import 'package:walletconnect_flutter_v2/apis/models/json_rpc_response.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/i_sessions.dart';
 import 'package:walletconnect_flutter_v2/apis/sign_api/i_sign_engine.dart';
 import 'package:walletconnect_flutter_v2/apis/sign_api/models/json_rpc_models.dart';
 import 'package:walletconnect_flutter_v2/apis/sign_api/models/proposal_models.dart';
-import 'package:walletconnect_flutter_v2/apis/sign_api/models/sign_client_events.dart';
 import 'package:walletconnect_flutter_v2/apis/sign_api/models/session_models.dart';
-import 'package:walletconnect_flutter_v2/apis/sign_api/i_sessions.dart';
+import 'package:walletconnect_flutter_v2/apis/sign_api/models/sign_client_events.dart';
 import 'package:walletconnect_flutter_v2/apis/sign_api/models/sign_client_models.dart';
 import 'package:walletconnect_flutter_v2/apis/sign_api/utils/sign_api_validator_utils.dart';
 import 'package:walletconnect_flutter_v2/apis/utils/constants.dart';
 import 'package:walletconnect_flutter_v2/apis/utils/errors.dart';
 import 'package:walletconnect_flutter_v2/apis/utils/method_constants.dart';
+import 'package:walletconnect_flutter_v2/apis/utils/namespace_utils.dart';
 import 'package:walletconnect_flutter_v2/apis/utils/walletconnect_utils.dart';
 
 class SignEngine implements ISignEngine {
@@ -39,6 +40,9 @@ class SignEngine implements ISignEngine {
   @override
   final Event<SessionProposalEvent> onSessionProposal =
       Event<SessionProposalEvent>();
+  @override
+  final Event<SessionProposalErrorEvent> onSessionProposalError =
+      Event<SessionProposalErrorEvent>();
   @override
   final Event<SessionProposalEvent> onProposalExpire =
       Event<SessionProposalEvent>();
@@ -94,10 +98,7 @@ class SignEngine implements ISignEngine {
     _registerRelayClientFunctions();
     await _cleanup();
 
-    // Subscribe to all the sessions
-    for (final SessionData session in sessions.getAll()) {
-      await core.relayClient.subscribe(topic: session.topic);
-    }
+    await _resubscribeAll();
 
     _initialized = true;
   }
@@ -135,12 +136,11 @@ class SignEngine implements ISignEngine {
     }
 
     final publicKey = await core.crypto.generateKeyPair();
-    final int id = PairingUtils.payloadId();
+    final int id = JsonRpcUtils.payloadId();
 
     final WcSessionProposeRequest request = WcSessionProposeRequest(
-      relays: relays == null
-          ? [Relay(WalletConnectConstants.RELAYER_DEFAULT_PROTOCOL)]
-          : relays,
+      relays:
+          relays ?? [Relay(WalletConnectConstants.RELAYER_DEFAULT_PROTOCOL)],
       requiredNamespaces: requiredNamespaces ?? {},
       optionalNamespaces: optionalNamespaces ?? {},
       proposer: ConnectionMetadata(
@@ -207,7 +207,7 @@ class SignEngine implements ISignEngine {
       final Map<String, dynamic> resp = await core.pairing.sendRequest(
         topic,
         MethodConstants.WC_SESSION_PROPOSE,
-        request.toJson(),
+        request,
         id: requestId,
       );
       final String peerPublicKey = resp['responderPublicKey'];
@@ -252,6 +252,7 @@ class SignEngine implements ISignEngine {
     Map<String, String>? sessionProperties,
     String? relayProtocol,
   }) async {
+    // print('sign approveSession');
     _checkInitialized();
 
     await _isValidApprove(
@@ -273,22 +274,11 @@ class SignEngine implements ISignEngine {
     );
     // print('approve session topic: $sessionTopic');
     final relay = Relay(
-      relayProtocol != null ? relayProtocol : 'irn',
+      relayProtocol ?? 'irn',
     );
+
     final int expiry = WalletConnectUtils.calculateExpiry(
       WalletConnectConstants.SEVEN_DAYS,
-    );
-    final request = WcSessionSettleRequest(
-      relay: relay,
-      namespaces: namespaces,
-      requiredNamespaces: proposal.requiredNamespaces,
-      optionalNamespaces: proposal.optionalNamespaces,
-      sessionProperties: sessionProperties,
-      expiry: expiry,
-      controller: ConnectionMetadata(
-        publicKey: selfPubKey,
-        metadata: metadata,
-      ),
     );
 
     // Respond to the proposal
@@ -298,12 +288,10 @@ class SignEngine implements ISignEngine {
       MethodConstants.WC_SESSION_PROPOSE,
       WcSessionProposeResponse(
         relay: Relay(
-          relayProtocol != null
-              ? relayProtocol
-              : WalletConnectConstants.RELAYER_DEFAULT_PROTOCOL,
+          relayProtocol ?? WalletConnectConstants.RELAYER_DEFAULT_PROTOCOL,
         ),
         responderPublicKey: selfPubKey,
-      ).toJson(),
+      ),
     );
     await _deleteProposal(id);
     await core.pairing.activate(topic: proposal.pairingTopic);
@@ -314,18 +302,13 @@ class SignEngine implements ISignEngine {
     );
 
     await core.relayClient.subscribe(topic: sessionTopic);
-    bool acknowledged = await core.pairing.sendRequest(
-      sessionTopic,
-      MethodConstants.WC_SESSION_SETTLE,
-      request.toJson(),
-    );
 
     SessionData session = SessionData(
       topic: sessionTopic,
       pairingTopic: proposal.pairingTopic,
       relay: relay,
       expiry: expiry,
-      acknowledged: acknowledged,
+      acknowledged: false,
       controller: selfPubKey,
       namespaces: namespaces,
       requiredNamespaces: proposal.requiredNamespaces,
@@ -337,14 +320,48 @@ class SignEngine implements ISignEngine {
       peer: proposal.proposer,
     );
 
-    onSessionConnect.broadcast(
-      SessionConnect(
-        session,
-      ),
-    );
+    // print('session connect');
+    onSessionConnect.broadcast(SessionConnect(session));
 
     await sessions.set(sessionTopic, session);
-    await _setExpiry(sessionTopic, expiry);
+    await _setSessionExpiry(sessionTopic, expiry);
+
+    // `wc_sessionSettle` is not critical throughout the entire session.
+    bool acknowledged = await core.pairing
+        .sendRequest(
+          sessionTopic,
+          MethodConstants.WC_SESSION_SETTLE,
+          WcSessionSettleRequest(
+            relay: relay,
+            namespaces: namespaces,
+            requiredNamespaces: proposal.requiredNamespaces,
+            optionalNamespaces: proposal.optionalNamespaces,
+            sessionProperties: sessionProperties,
+            expiry: expiry,
+            controller: ConnectionMetadata(
+              publicKey: selfPubKey,
+              metadata: metadata,
+            ),
+          ),
+        )
+        // Sometimes we don't receive any response for a long time,
+        // in which case we manually time out to prevent waiting indefinitely.
+        .timeout(const Duration(seconds: 15))
+        .catchError(
+      (_) {
+        return false;
+      },
+    );
+
+    session.acknowledged = acknowledged;
+
+    if (acknowledged && sessions.has(sessionTopic)) {
+      // We directly update the latest value.
+      await sessions.set(
+        sessionTopic,
+        session,
+      );
+    }
 
     return ApproveResponse(
       topic: sessionTopic,
@@ -400,7 +417,7 @@ class SignEngine implements ISignEngine {
     await core.pairing.sendRequest(
       topic,
       MethodConstants.WC_SESSION_UPDATE,
-      WcSessionUpdateRequest(namespaces: namespaces).toJson(),
+      WcSessionUpdateRequest(namespaces: namespaces),
     );
   }
 
@@ -417,7 +434,7 @@ class SignEngine implements ISignEngine {
       {},
     );
 
-    await _setExpiry(
+    await _setSessionExpiry(
       topic,
       WalletConnectUtils.calculateExpiry(
         WalletConnectConstants.SEVEN_DAYS,
@@ -426,15 +443,15 @@ class SignEngine implements ISignEngine {
   }
 
   /// Maps a request using chainId:method to its handler
-  Map<String, dynamic Function(String, dynamic)?> _methodHandlers = {};
+  final Map<String, dynamic Function(String, dynamic)?> _methodHandlers = {};
 
+  @override
   void registerRequestHandler({
     required String chainId,
     required String method,
     dynamic Function(String, dynamic)? handler,
   }) {
-    _checkInitialized();
-    _methodHandlers[getRegisterKey(chainId, method)] = handler;
+    _methodHandlers[_getRegisterKey(chainId, method)] = handler;
   }
 
   @override
@@ -449,15 +466,13 @@ class SignEngine implements ISignEngine {
       chainId,
       request,
     );
-    Map<String, dynamic> payload = WcSessionRequestRequest(
-      chainId: chainId,
-      request: request,
-    ).toJson();
-    request.toJson();
     return await core.pairing.sendRequest(
       topic,
       MethodConstants.WC_SESSION_REQUEST,
-      payload,
+      WcSessionRequestRequest(
+        chainId: chainId,
+        request: request,
+      ),
     );
   }
 
@@ -491,15 +506,16 @@ class SignEngine implements ISignEngine {
   }
 
   /// Maps a request using chainId:event to its handler
-  Map<String, dynamic Function(String, dynamic)?> _eventHandlers = {};
+  final Map<String, dynamic Function(String, dynamic)?> _eventHandlers = {};
 
+  @override
   void registerEventHandler({
     required String chainId,
     required String event,
     dynamic Function(String, dynamic)? handler,
   }) {
     _checkInitialized();
-    _eventHandlers[getRegisterKey(chainId, event)] = handler;
+    _eventHandlers[_getRegisterKey(chainId, event)] = handler;
   }
 
   @override
@@ -514,14 +530,13 @@ class SignEngine implements ISignEngine {
       event,
       chainId,
     );
-    Map<String, dynamic> payload = WcSessionEventRequest(
-      chainId: chainId,
-      event: event,
-    ).toJson();
     await core.pairing.sendRequest(
       topic,
       MethodConstants.WC_SESSION_EVENT,
-      payload,
+      WcSessionEventRequest(
+        chainId: chainId,
+        event: event,
+      ),
     );
   }
 
@@ -552,18 +567,16 @@ class SignEngine implements ISignEngine {
     await _isValidDisconnect(topic);
 
     if (sessions.has(topic)) {
-      Map<String, dynamic> payload = WcSessionDeleteRequest(
-        code: reason.code,
-        message: reason.message,
-        data: reason.data,
-      ).toJson();
-
       // Send the request to delete the session, we don't care if it fails
       try {
         core.pairing.sendRequest(
           topic,
           MethodConstants.WC_SESSION_DELETE,
-          payload,
+          WcSessionDeleteRequest(
+            code: reason.code,
+            message: reason.message,
+            data: reason.data,
+          ),
         );
       } catch (_) {}
 
@@ -644,21 +657,76 @@ class SignEngine implements ISignEngine {
   @override
   IPairingStore get pairings => core.pairing.getStore();
 
+  final Set<String> _eventEmitters = {};
+  final Set<String> _accounts = {};
+
+  @override
+  void registerEventEmitter({
+    required String chainId,
+    required String event,
+  }) {
+    final bool isChainId = NamespaceUtils.isValidChainId(chainId);
+    if (!isChainId) {
+      throw Errors.getSdkError(
+        Errors.UNSUPPORTED_CHAINS,
+        context:
+            'registerEventEmitter, chain $chainId should conform to "namespace:chainId" format',
+      );
+    }
+    final String value = _getRegisterKey(chainId, event);
+    SignApiValidatorUtils.isValidAccounts(
+      accounts: [value],
+      context: 'registerEventEmitter',
+    );
+    _eventEmitters.add(value);
+  }
+
+  @override
+  void registerAccount({
+    required String chainId,
+    required String accountAddress,
+  }) {
+    final bool isChainId = NamespaceUtils.isValidChainId(chainId);
+    if (!isChainId) {
+      throw Errors.getSdkError(
+        Errors.UNSUPPORTED_CHAINS,
+        context:
+            'registerAccount, chain $chainId should conform to "namespace:chainId" format',
+      );
+    }
+    final String value = _getRegisterKey(chainId, accountAddress);
+    SignApiValidatorUtils.isValidAccounts(
+      accounts: [value],
+      context: 'registerAccount',
+    );
+    _accounts.add(value);
+  }
+
   /// ---- PRIVATE HELPERS ---- ////
+
+  Future<void> _resubscribeAll() async {
+    // Subscribe to all the sessions
+    for (final SessionData session in sessions.getAll()) {
+      // print('Session: subscribing to ${session.topic}');
+      await core.relayClient.subscribe(topic: session.topic);
+    }
+  }
+
   void _checkInitialized() {
     if (!_initialized) {
       throw Errors.getInternalError(Errors.NOT_INITIALIZED);
     }
   }
 
-  String getRegisterKey(String namespace, String method) {
-    return '$namespace:$method';
+  String _getRegisterKey(String chainId, String value) {
+    return '$chainId:$value';
   }
 
   Future<void> _deleteSession(
     String topic, {
     bool expirerHasDeleted = false,
   }) async {
+    // print('deleting session: $topic, expirerHasDeleted: $expirerHasDeleted');
     final SessionData? session = sessions.get(topic);
     if (session == null) {
       return;
@@ -699,7 +767,7 @@ class SignEngine implements ISignEngine {
     }
   }
 
-  Future<void> _setExpiry(String topic, int expiry) async {
+  Future<void> _setSessionExpiry(String topic, int expiry) async {
     if (sessions.has(topic)) {
       await sessions.update(
         topic,
@@ -741,7 +809,11 @@ class SignEngine implements ISignEngine {
         proposalIds.add(proposal.id);
       }
     }
-    sessionTopics.map((topic) async => await _deleteSession(topic));
+
+    sessionTopics.map((topic) async {
+      // print('deleting expired session $topic');
+      await _deleteSession(topic);
+    });
     proposalIds.map((id) async => await _deleteProposal(id));
   }
 
@@ -751,42 +823,42 @@ class SignEngine implements ISignEngine {
     core.pairing.register(
       method: MethodConstants.WC_SESSION_PROPOSE,
       function: _onSessionProposeRequest,
-      type: ProtocolType.Sign,
+      type: ProtocolType.sign,
     );
     core.pairing.register(
       method: MethodConstants.WC_SESSION_SETTLE,
       function: _onSessionSettleRequest,
-      type: ProtocolType.Sign,
+      type: ProtocolType.sign,
     );
     core.pairing.register(
       method: MethodConstants.WC_SESSION_UPDATE,
       function: _onSessionUpdateRequest,
-      type: ProtocolType.Sign,
+      type: ProtocolType.sign,
     );
     core.pairing.register(
       method: MethodConstants.WC_SESSION_EXTEND,
       function: _onSessionExtendRequest,
-      type: ProtocolType.Sign,
+      type: ProtocolType.sign,
     );
     core.pairing.register(
       method: MethodConstants.WC_SESSION_PING,
       function: _onSessionPingRequest,
-      type: ProtocolType.Sign,
+      type: ProtocolType.sign,
     );
     core.pairing.register(
       method: MethodConstants.WC_SESSION_DELETE,
       function: _onSessionDeleteRequest,
-      type: ProtocolType.Sign,
+      type: ProtocolType.sign,
     );
     core.pairing.register(
       method: MethodConstants.WC_SESSION_REQUEST,
       function: _onSessionRequest,
-      type: ProtocolType.Sign,
+      type: ProtocolType.sign,
     );
     core.pairing.register(
       method: MethodConstants.WC_SESSION_EVENT,
       function: _onSessionEventRequest,
-      type: ProtocolType.Sign,
+      type: ProtocolType.sign,
     );
   }
 
@@ -795,7 +867,9 @@ class SignEngine implements ISignEngine {
     JsonRpcRequest payload,
   ) async {
     try {
-      // print(payload.params);
+      core.logger.v(
+        '_onSessionProposeRequest, topic: $topic, payload: $payload',
+      );
       final proposeRequest = WcSessionProposeRequest.fromJson(payload.params);
       await _isValidConnect(
         requiredNamespaces: proposeRequest.requiredNamespaces,
@@ -804,6 +878,52 @@ class SignEngine implements ISignEngine {
         pairingTopic: topic,
         relays: proposeRequest.relays,
       );
+
+      // If there are accounts and event emitters, then handle the Namespace generate automatically
+      Map<String, Namespace>? namespaces;
+      if (_accounts.isNotEmpty || _eventEmitters.isNotEmpty) {
+        namespaces = NamespaceUtils.constructNamespaces(
+          availableAccounts: _accounts,
+          availableMethods: _methodHandlers.keys.toSet(),
+          availableEvents: _eventEmitters,
+          requiredNamespaces: proposeRequest.requiredNamespaces,
+          optionalNamespaces: proposeRequest.optionalNamespaces,
+        );
+
+        // Check that the namespaces are conforming
+        try {
+          SignApiValidatorUtils.isConformingNamespaces(
+            requiredNamespaces: proposeRequest.requiredNamespaces,
+            namespaces: namespaces,
+            context: 'onSessionProposeRequest',
+          );
+        } on WalletConnectError catch (err) {
+          // If they aren't, send an error
+          core.logger.v(
+            '_onSessionProposeRequest WalletConnectError: $err',
+          );
+          await core.pairing.sendError(
+            payload.id,
+            topic,
+            payload.method,
+            JsonRpcError.fromJson(
+              err.toJson(),
+            ),
+          );
+
+          // Broadcast that a session proposal error has occurred
+          onSessionProposalError.broadcast(
+            SessionProposalErrorEvent(
+              payload.id,
+              proposeRequest.requiredNamespaces,
+              namespaces,
+              err,
+            ),
+          );
+          return;
+        }
+      }
+
       final expiry = WalletConnectUtils.calculateExpiry(
         WalletConnectConstants.FIVE_MINUTES,
       );
@@ -816,6 +936,7 @@ class SignEngine implements ISignEngine {
         optionalNamespaces: proposeRequest.optionalNamespaces ?? {},
         sessionProperties: proposeRequest.sessionProperties,
         pairingTopic: topic,
+        generatedNamespaces: namespaces,
       );
 
       await _setProposal(payload.id, proposal);
@@ -824,12 +945,13 @@ class SignEngine implements ISignEngine {
         proposal,
       ));
     } on WalletConnectError catch (err) {
+      core.logger.e('_onSessionProposeRequest Error: $err');
       await core.pairing.sendError(
         payload.id,
         topic,
         payload.method,
-        JsonRpcError.invalidParams(
-          err.message,
+        JsonRpcError.fromJson(
+          err.toJson(),
         ),
       );
     }
@@ -843,10 +965,10 @@ class SignEngine implements ISignEngine {
     final request = WcSessionSettleRequest.fromJson(payload.params);
     try {
       await _isValidSessionSettleRequest(request.namespaces, request.expiry);
-      // SessionProposalCompleter sProposalCompleter =
-      //     pendingProposals.remove(topic)!;
+
       final SessionProposalCompleter sProposalCompleter =
           pendingProposals.removeLast();
+      // print(sProposalCompleter);
 
       // Create the session
       final SessionData session = SessionData(
@@ -869,7 +991,7 @@ class SignEngine implements ISignEngine {
 
       // Update all the things: session, expiry, metadata, pairing
       sessions.set(topic, session);
-      _setExpiry(topic, session.expiry);
+      _setSessionExpiry(topic, session.expiry);
       await core.pairing.updateMetadata(
         topic: sProposalCompleter.pairingTopic,
         metadata: request.controller.metadata,
@@ -880,6 +1002,7 @@ class SignEngine implements ISignEngine {
       sProposalCompleter.completer.complete(session);
 
       // Send back a success!
+      // print('responding to session settle: acknolwedged');
       await core.pairing.sendResult(
         payload.id,
         topic,
@@ -890,6 +1013,7 @@ class SignEngine implements ISignEngine {
         SessionConnect(session),
       );
     } on WalletConnectError catch (err) {
+      core.logger.e('_onSessionSettleRequest Error: $err');
       await core.pairing.sendError(
         payload.id,
         topic,
@@ -927,6 +1051,7 @@ class SignEngine implements ISignEngine {
         ),
       );
     } on WalletConnectError catch (err) {
+      core.logger.e('_onSessionUpdateRequest Error: $err');
       await core.pairing.sendError(
         payload.id,
         topic,
@@ -945,7 +1070,7 @@ class SignEngine implements ISignEngine {
     try {
       final _ = WcSessionExtendRequest.fromJson(payload.params);
       await _isValidSessionTopic(topic);
-      await _setExpiry(
+      await _setSessionExpiry(
         topic,
         WalletConnectUtils.calculateExpiry(
           WalletConnectConstants.SEVEN_DAYS,
@@ -1061,7 +1186,7 @@ class SignEngine implements ISignEngine {
         sessionRequest,
       );
 
-      final String methodKey = getRegisterKey(
+      final String methodKey = _getRegisterKey(
         request.chainId,
         request.request.method,
       );
@@ -1089,6 +1214,8 @@ class SignEngine implements ISignEngine {
                 e.toJson(),
               ),
             );
+          } on WalletConnectErrorSilent catch (_) {
+            // Do nothing on silent error
           } catch (err) {
             await core.pairing.sendError(
               payload.id,
@@ -1099,10 +1226,15 @@ class SignEngine implements ISignEngine {
               ),
             );
           }
-          await pendingRequests.delete(
-            payload.id.toString(),
-          );
+
+          await _deletePendingRequest(payload.id);
         }
+
+        onSessionRequest.broadcast(
+          SessionRequestEvent.fromSessionRequest(
+            sessionRequest,
+          ),
+        );
       } else {
         await core.pairing.sendError(
           payload.id,
@@ -1113,12 +1245,6 @@ class SignEngine implements ISignEngine {
           ),
         );
       }
-
-      onSessionRequest.broadcast(
-        SessionRequestEvent.fromSessionRequest(
-          sessionRequest,
-        ),
-      );
     } on WalletConnectError catch (err) {
       await core.pairing.sendError(
         payload.id,
@@ -1144,17 +1270,7 @@ class SignEngine implements ISignEngine {
         request.chainId,
       );
 
-      onSessionEvent.broadcast(
-        SessionEvent(
-          payload.id,
-          topic,
-          event.name,
-          request.chainId,
-          event.data,
-        ),
-      );
-
-      final String eventKey = getRegisterKey(
+      final String eventKey = _getRegisterKey(
         request.chainId,
         request.event.name,
       );
@@ -1185,6 +1301,16 @@ class SignEngine implements ISignEngine {
           MethodConstants.WC_SESSION_REQUEST,
           true,
         );
+
+        onSessionEvent.broadcast(
+          SessionEvent(
+            payload.id,
+            topic,
+            event.name,
+            request.chainId,
+            event.data,
+          ),
+        );
       } else {
         await core.pairing.sendError(
           payload.id,
@@ -1210,16 +1336,16 @@ class SignEngine implements ISignEngine {
   /// ---- Event Registers ---- ///
 
   void _registerInternalEvents() {
+    core.relayClient.onRelayClientConnect.subscribe(_onRelayConnect);
     core.expirer.onExpire.subscribe(_onExpired);
     core.pairing.onPairingDelete.subscribe(_onPairingDelete);
     core.pairing.onPairingExpire.subscribe(_onPairingDelete);
   }
 
-  // void _deregisterInternalEvents() {
-  //   core.expirer.onExpire.unsubscribe(_onExpired);
-  //   core.pairing.onPairingDelete.unsubscribe(_onPairingDelete);
-  //   core.pairing.onPairingExpire.unsubscribe(_onPairingDelete);
-  // }
+  Future<void> _onRelayConnect(EventArgs? args) async {
+    // print('Session: relay connected');
+    await _resubscribeAll();
+  }
 
   Future<void> _onPairingDelete(PairingEvent? event) async {
     // Delete all the sessions associated with the pairing
@@ -1290,24 +1416,6 @@ class SignEngine implements ISignEngine {
 
   /// ---- Validation Helpers ---- ///
 
-  Future<bool> _isValidPairingTopic(String topic) async {
-    if (!core.pairing.getStore().has(topic)) {
-      throw Errors.getInternalError(
-        Errors.NO_MATCHING_KEY,
-        context: "pairing topic doesn't exist: $topic",
-      );
-    }
-
-    if (await core.expirer.checkAndExpire(topic)) {
-      throw Errors.getInternalError(
-        Errors.EXPIRED,
-        context: "pairing topic: $topic",
-      );
-    }
-
-    return true;
-  }
-
   Future<bool> _isValidSessionTopic(String topic) async {
     if (!sessions.has(topic)) {
       throw Errors.getInternalError(
@@ -1319,7 +1427,7 @@ class SignEngine implements ISignEngine {
     if (await core.expirer.checkAndExpire(topic)) {
       throw Errors.getInternalError(
         Errors.EXPIRED,
-        context: "session topic: $topic",
+        context: 'session topic: $topic',
       );
     }
 
@@ -1352,7 +1460,7 @@ class SignEngine implements ISignEngine {
     if (await core.expirer.checkAndExpire(id.toString())) {
       throw Errors.getInternalError(
         Errors.EXPIRED,
-        context: "proposal id: $id",
+        context: 'proposal id: $id',
       );
     }
 
@@ -1370,7 +1478,7 @@ class SignEngine implements ISignEngine {
     if (await core.expirer.checkAndExpire(id.toString())) {
       throw Errors.getInternalError(
         Errors.EXPIRED,
-        context: "pending request id: $id",
+        context: 'pending request id: $id',
       );
     }
 
@@ -1397,14 +1505,14 @@ class SignEngine implements ISignEngine {
     if (requiredNamespaces != null) {
       SignApiValidatorUtils.isValidRequiredNamespaces(
         requiredNamespaces: requiredNamespaces,
-        context: "connect() check requiredNamespaces.",
+        context: 'connect() check requiredNamespaces.',
       );
     }
 
     if (optionalNamespaces != null) {
       SignApiValidatorUtils.isValidRequiredNamespaces(
         requiredNamespaces: optionalNamespaces,
-        context: "connect() check optionalNamespaces.",
+        context: 'connect() check optionalNamespaces.',
       );
     }
 
@@ -1424,24 +1532,24 @@ class SignEngine implements ISignEngine {
     // Validate the namespaces
     SignApiValidatorUtils.isValidNamespaces(
       namespaces: namespaces,
-      context: "approve()",
+      context: 'approve()',
     );
 
     // Validate the required and optional namespaces
     SignApiValidatorUtils.isValidRequiredNamespaces(
       requiredNamespaces: proposal.requiredNamespaces,
-      context: "approve() check requiredNamespaces.",
+      context: 'approve() check requiredNamespaces.',
     );
     SignApiValidatorUtils.isValidRequiredNamespaces(
       requiredNamespaces: proposal.optionalNamespaces,
-      context: "approve() check optionalNamespaces.",
+      context: 'approve() check optionalNamespaces.',
     );
 
     // Make sure the provided namespaces conforms with the required
     SignApiValidatorUtils.isConformingNamespaces(
       requiredNamespaces: proposal.requiredNamespaces,
       namespaces: namespaces,
-      context: "approve()",
+      context: 'approve()',
     );
 
     return true;
@@ -1459,7 +1567,7 @@ class SignEngine implements ISignEngine {
   ) async {
     SignApiValidatorUtils.isValidNamespaces(
       namespaces: namespaces,
-      context: "onSessionSettleRequest()",
+      context: 'onSessionSettleRequest()',
     );
 
     if (WalletConnectUtils.isExpired(expiry)) {
@@ -1479,7 +1587,7 @@ class SignEngine implements ISignEngine {
     await _isValidSessionTopic(topic);
     SignApiValidatorUtils.isValidNamespaces(
       namespaces: namespaces,
-      context: "update()",
+      context: 'update()',
     );
     final SessionData session = sessions.get(topic)!;
 

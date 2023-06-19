@@ -13,7 +13,7 @@ import 'package:walletconnect_flutter_v2/apis/auth_api/utils/auth_signature.dart
 import 'package:walletconnect_flutter_v2/apis/core/crypto/crypto_models.dart';
 import 'package:walletconnect_flutter_v2/apis/core/i_core.dart';
 import 'package:walletconnect_flutter_v2/apis/core/pairing/utils/pairing_models.dart';
-import 'package:walletconnect_flutter_v2/apis/core/pairing/utils/pairing_utils.dart';
+import 'package:walletconnect_flutter_v2/apis/core/pairing/utils/json_rpc_utils.dart';
 import 'package:walletconnect_flutter_v2/apis/models/basic_models.dart';
 import 'package:walletconnect_flutter_v2/apis/models/json_rpc_error.dart';
 import 'package:walletconnect_flutter_v2/apis/models/json_rpc_request.dart';
@@ -22,7 +22,7 @@ import 'package:walletconnect_flutter_v2/apis/utils/errors.dart';
 import 'package:walletconnect_flutter_v2/apis/utils/method_constants.dart';
 
 class AuthEngine implements IAuthEngine {
-  static const List<List<String>> DEFAULT_METHODS = [
+  static const List<List<String>> defaultMethods = [
     [
       MethodConstants.WC_AUTH_REQUEST,
     ]
@@ -80,7 +80,7 @@ class AuthEngine implements IAuthEngine {
   Future<AuthRequestResponse> requestAuth({
     required AuthRequestParams params,
     String? pairingTopic,
-    List<List<String>>? methods = DEFAULT_METHODS,
+    List<List<String>>? methods = defaultMethods,
   }) async {
     _checkInitialized();
 
@@ -101,7 +101,7 @@ class AuthEngine implements IAuthEngine {
     final publicKey = await core.crypto.generateKeyPair();
     // print('requestAuth, publicKey: $publicKey');
     final String responseTopic = core.crypto.getUtils().hashKey(publicKey);
-    final int id = PairingUtils.payloadId();
+    final int id = JsonRpcUtils.payloadId();
 
     WcAuthRequestRequest request = WcAuthRequestRequest(
       payloadParams: AuthPayloadParams.fromRequestParams(
@@ -132,7 +132,7 @@ class AuthEngine implements IAuthEngine {
       expiry: expiry,
     );
 
-    Completer<AuthResponse> completer = Completer.sync();
+    Completer<AuthResponse> completer = Completer();
 
     _requestAuthResponseHandler(
       pairingTopic: pTopic,
@@ -162,6 +162,7 @@ class AuthEngine implements IAuthEngine {
     Map<String, dynamic>? resp;
 
     // Subscribe to the responseTopic because we expect the response to use this topic
+    // print('got here');
     await core.relayClient.subscribe(topic: responseTopic);
 
     try {
@@ -295,6 +296,7 @@ class AuthEngine implements IAuthEngine {
         s: signature!,
       );
 
+      // print('auth res id: $id');
       await core.pairing.sendResult(
         id,
         responseTopic,
@@ -347,7 +349,7 @@ class AuthEngine implements IAuthEngine {
     required CacaoRequestPayload cacaoPayload,
   }) {
     final header =
-        '${cacaoPayload.domain} wants you to sign in with your Ethereum account';
+        '${cacaoPayload.domain} wants you to sign in with your Ethereum account:';
     final walletAddress = AddressUtils.getDidAddress(iss);
     final uri = 'URI: ${cacaoPayload.aud}';
     final version = 'Version: ${cacaoPayload.version}';
@@ -390,7 +392,7 @@ class AuthEngine implements IAuthEngine {
     core.pairing.register(
       method: MethodConstants.WC_AUTH_REQUEST,
       function: _onAuthRequest,
-      type: ProtocolType.Auth,
+      type: ProtocolType.auth,
     );
   }
 

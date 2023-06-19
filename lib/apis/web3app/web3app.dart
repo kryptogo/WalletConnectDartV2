@@ -1,11 +1,11 @@
 import 'package:event/event.dart';
+import 'package:logger/logger.dart';
 import 'package:walletconnect_flutter_v2/apis/auth_api/auth_engine.dart';
-import 'package:walletconnect_flutter_v2/apis/auth_api/utils/auth_constants.dart';
+import 'package:walletconnect_flutter_v2/apis/core/relay_client/websocket/http_client.dart';
 import 'package:walletconnect_flutter_v2/apis/core/store/generic_store.dart';
 import 'package:walletconnect_flutter_v2/apis/core/store/i_generic_store.dart';
 import 'package:walletconnect_flutter_v2/apis/sign_api/i_sessions.dart';
 import 'package:walletconnect_flutter_v2/apis/sign_api/sign_engine.dart';
-import 'package:walletconnect_flutter_v2/apis/sign_api/utils/sign_constants.dart';
 import 'package:walletconnect_flutter_v2/walletconnect_flutter_v2.dart';
 
 class Web3App implements IWeb3App {
@@ -26,12 +26,16 @@ class Web3App implements IWeb3App {
     String relayUrl = WalletConnectConstants.DEFAULT_RELAY_URL,
     required PairingMetadata metadata,
     bool memoryStore = false,
+    Level logLevel = Level.nothing,
+    HttpWrapper httpClient = const HttpWrapper(),
   }) async {
     final client = Web3App(
       core: Core(
         projectId: projectId,
         relayUrl: relayUrl,
         memoryStore: memoryStore,
+        logLevel: logLevel,
+        httpClient: httpClient,
       ),
       metadata: metadata,
     );
@@ -60,24 +64,25 @@ class Web3App implements IWeb3App {
       core: core,
       metadata: metadata,
       proposals: GenericStore(
-        core: core,
-        context: SignConstants.CONTEXT_PROPOSALS,
-        version: SignConstants.VERSION_PROPOSALS,
-        toJson: (ProposalData value) {
-          return value.toJson();
-        },
+        storage: core.storage,
+        context: StoreVersions.CONTEXT_PROPOSALS,
+        version: StoreVersions.VERSION_PROPOSALS,
         fromJson: (dynamic value) {
           return ProposalData.fromJson(value);
         },
       ),
-      sessions: Sessions(core),
-      pendingRequests: GenericStore(
-        core: core,
-        context: SignConstants.CONTEXT_PENDING_REQUESTS,
-        version: SignConstants.VERSION_PENDING_REQUESTS,
-        toJson: (SessionRequest value) {
-          return value.toJson();
+      sessions: Sessions(
+        storage: core.storage,
+        context: StoreVersions.CONTEXT_SESSIONS,
+        version: StoreVersions.VERSION_SESSIONS,
+        fromJson: (dynamic value) {
+          return SessionData.fromJson(value);
         },
+      ),
+      pendingRequests: GenericStore(
+        storage: core.storage,
+        context: StoreVersions.CONTEXT_PENDING_REQUESTS,
+        version: StoreVersions.VERSION_PENDING_REQUESTS,
         fromJson: (dynamic value) {
           return SessionRequest.fromJson(value);
         },
@@ -88,45 +93,33 @@ class Web3App implements IWeb3App {
       core: core,
       metadata: metadata,
       authKeys: GenericStore(
-        core: core,
-        context: AuthConstants.CONTEXT_AUTH_KEYS,
-        version: AuthConstants.VERSION_AUTH_KEYS,
-        toJson: (AuthPublicKey value) {
-          return value.toJson();
-        },
+        storage: core.storage,
+        context: StoreVersions.CONTEXT_AUTH_KEYS,
+        version: StoreVersions.VERSION_AUTH_KEYS,
         fromJson: (dynamic value) {
           return AuthPublicKey.fromJson(value);
         },
       ),
       pairingTopics: GenericStore(
-        core: core,
-        context: AuthConstants.CONTEXT_PAIRING_TOPICS,
-        version: AuthConstants.VERSION_PAIRING_TOPICS,
-        toJson: (String value) {
-          return value;
-        },
+        storage: core.storage,
+        context: StoreVersions.CONTEXT_PAIRING_TOPICS,
+        version: StoreVersions.VERSION_PAIRING_TOPICS,
         fromJson: (dynamic value) {
           return value;
         },
       ),
       authRequests: GenericStore(
-        core: core,
-        context: AuthConstants.CONTEXT_AUTH_REQUESTS,
-        version: AuthConstants.VERSION_AUTH_REQUESTS,
-        toJson: (PendingAuthRequest value) {
-          return value.toJson();
-        },
+        storage: core.storage,
+        context: StoreVersions.CONTEXT_AUTH_REQUESTS,
+        version: StoreVersions.VERSION_AUTH_REQUESTS,
         fromJson: (dynamic value) {
           return PendingAuthRequest.fromJson(value);
         },
       ),
       completeRequests: GenericStore(
-        core: core,
-        context: AuthConstants.CONTEXT_COMPLETE_REQUESTS,
-        version: AuthConstants.VERSION_COMPLETE_REQUESTS,
-        toJson: (StoredCacao value) {
-          return value.toJson();
-        },
+        storage: core.storage,
+        context: StoreVersions.CONTEXT_COMPLETE_REQUESTS,
+        version: StoreVersions.VERSION_COMPLETE_REQUESTS,
         fromJson: (dynamic value) {
           return StoredCacao.fromJson(value);
         },

@@ -8,8 +8,11 @@ class SignApiValidatorUtils {
     required List<dynamic> container,
     required List<dynamic> contained,
   }) {
-    List<dynamic> matches =
-        contained.where((x) => container.contains(x)).toList();
+    List<dynamic> matches = contained
+        .where(
+          (x) => container.contains(x),
+        )
+        .toList();
     return matches.length == contained.length;
   }
 
@@ -116,7 +119,7 @@ class SignApiValidatorUtils {
     );
 
     // Get the chains from the namespaces and
-    List<String> chains = NamespaceUtils.getChainsFromNamespaces(
+    List<String> chains = NamespaceUtils.getChainIdsFromNamespaces(
       namespaces: namespaces,
     );
 
@@ -187,7 +190,7 @@ class SignApiValidatorUtils {
       context: 'isValidNamespacesEvent',
     );
 
-    List<dynamic> events = NamespaceUtils.getNamespacesEventsForChainId(
+    List<dynamic> events = NamespaceUtils.getNamespacesEventsForChain(
       namespaces: namespaces,
       chainId: chainId,
     );
@@ -215,18 +218,18 @@ class SignApiValidatorUtils {
     // If the namespaces doesn't have the correct keys, we can fail automatically
     if (!isContainedIn(
         container: namespaceKeys, contained: requiredNamespaceKeys)) {
-      throw Errors.getInternalError(
-        Errors.NON_CONFORMING_NAMESPACES,
+      throw Errors.getSdkError(
+        Errors.UNSUPPORTED_NAMESPACE_KEY,
         context: "$context namespaces keys don't satisfy requiredNamespaces",
       );
     } else {
-      requiredNamespaceKeys.forEach((key) {
+      for (var key in requiredNamespaceKeys) {
         List<String> requiredNamespaceChains =
             NamespaceUtils.getChainsFromRequiredNamespace(
           nsOrChainId: key,
           requiredNamespace: requiredNamespaces[key]!,
         );
-        List<String> namespaceChains = NamespaceUtils.getChainsFromNamespace(
+        List<String> namespaceChains = NamespaceUtils.getChainIdsFromNamespace(
           nsOrChainId: key,
           namespace: namespaces[key]!,
         );
@@ -247,25 +250,25 @@ class SignApiValidatorUtils {
         );
 
         if (!chainsOverlap) {
-          throw Errors.getInternalError(
-            Errors.NON_CONFORMING_NAMESPACES,
+          throw Errors.getSdkError(
+            Errors.UNSUPPORTED_CHAINS,
             context:
-                "$context namespaces accounts don't satisfy requiredNamespaces chains for $key",
+                "$context namespaces chains don't satisfy requiredNamespaces chains for $key",
           );
         } else if (!methodsOverlap) {
-          throw Errors.getInternalError(
-            Errors.NON_CONFORMING_NAMESPACES,
+          throw Errors.getSdkError(
+            Errors.UNSUPPORTED_METHODS,
             context:
                 "$context namespaces methods don't satisfy requiredNamespaces methods for $key",
           );
         } else if (!eventsOverlap) {
-          throw Errors.getInternalError(
-            Errors.NON_CONFORMING_NAMESPACES,
+          throw Errors.getSdkError(
+            Errors.UNSUPPORTED_EVENTS,
             context:
                 "$context namespaces events don't satisfy requiredNamespaces events for $key",
           );
         }
-      });
+      }
     }
 
     return true;
@@ -283,7 +286,7 @@ class SignApiValidatorUtils {
       return false;
     }
 
-    sessionKeys.forEach((key) {
+    for (var key in sessionKeys) {
       Namespace namespace = session.namespaces[key]!;
       RequiredNamespace requiredNamespace = requiredNamespaces[key]!;
       List<String> requiredNamespaceChains =
@@ -291,7 +294,7 @@ class SignApiValidatorUtils {
         nsOrChainId: key,
         requiredNamespace: requiredNamespace,
       );
-      List<String> namespaceChains = NamespaceUtils.getChainsFromNamespace(
+      List<String> namespaceChains = NamespaceUtils.getChainIdsFromNamespace(
         nsOrChainId: key,
         namespace: namespace,
       );
@@ -314,7 +317,7 @@ class SignApiValidatorUtils {
       if (!chainsOverlap || !methodsOverlap || !eventsOverlap) {
         compatible = false;
       }
-    });
+    }
 
     return compatible;
   }

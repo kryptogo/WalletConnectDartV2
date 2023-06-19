@@ -98,8 +98,8 @@ class SessionData {
     required this.acknowledged,
     required this.controller,
     required this.namespaces,
-    required this.requiredNamespaces,
-    required this.optionalNamespaces,
+    this.requiredNamespaces,
+    this.optionalNamespaces,
     this.sessionProperties,
     required this.self,
     required this.peer,
@@ -109,6 +109,23 @@ class SessionData {
       _$SessionDataFromJson(json);
 
   Map<String, dynamic> toJson() => _$SessionDataToJson(this);
+
+  SessionData withAcknowledged(bool value) {
+    return SessionData(
+      topic: topic,
+      pairingTopic: pairingTopic,
+      relay: relay,
+      expiry: expiry,
+      acknowledged: value,
+      controller: controller,
+      namespaces: namespaces,
+      self: self,
+      peer: peer,
+      requiredNamespaces: requiredNamespaces,
+      optionalNamespaces: optionalNamespaces,
+      sessionProperties: sessionProperties,
+    );
+  }
 
   @override
   String toString() {

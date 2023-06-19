@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart';
 import 'package:mockito/mockito.dart';
 import 'package:walletconnect_flutter_v2/apis/core/core.dart';
 import 'package:walletconnect_flutter_v2/apis/core/i_core.dart';
@@ -8,9 +9,11 @@ import 'package:walletconnect_flutter_v2/apis/core/pairing/utils/pairing_models.
 import 'package:walletconnect_flutter_v2/apis/core/relay_client/relay_client.dart';
 import 'package:walletconnect_flutter_v2/apis/core/relay_client/relay_client_models.dart';
 import 'package:walletconnect_flutter_v2/apis/models/basic_models.dart';
+import 'package:walletconnect_flutter_v2/apis/utils/errors.dart';
 
 import '../shared/shared_test_values.dart';
-import 'shared/shared_test_utils.mocks.dart';
+import '../shared/shared_test_utils.dart';
+import '../shared/shared_test_utils.mocks.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -20,15 +23,39 @@ void main() {
 
   group('Relay throws errors', () {
     test('when connection parameters are invalid', () async {
+      final http = MockHttpWrapper();
+      when(http.get(any)).thenAnswer(
+        (_) async => Response(
+          '',
+          WebSocketErrors.PROJECT_ID_NOT_FOUND,
+        ),
+      );
       final ICore core = Core(
         projectId: 'abc',
         memoryStore: true,
+        httpClient: http,
       );
 
       expect(
         () async => await core.start(),
-        throwsA(isA<WalletConnectError>()),
+        throwsA(
+          isA<WalletConnectError>().having(
+            (e) => e.message,
+            'Invalid project id',
+            'WebSocket connection failed, this could be: 1. Missing project id, 2. Invalid project id, 3. Too many requests',
+          ),
+        ),
       );
+      // expect(
+      //   () async => await core.start(),
+      //   throwsA(
+      //     isA<HttpException>().having(
+      //       (e) => e.message,
+      //       'Invalid project id',
+      //       WebSocketErrors.PROJECT_ID_NOT_FOUND_MESSAGE,
+      //     ),
+      //   ),
+      // );
     });
   });
 
@@ -36,10 +63,12 @@ void main() {
     ICore coreA = Core(
       projectId: TEST_PROJECT_ID,
       memoryStore: true,
+      httpClient: getHttpWrapper(),
     );
     ICore coreB = Core(
       projectId: TEST_PROJECT_ID,
       memoryStore: true,
+      httpClient: getHttpWrapper(),
     );
 
     int counterA = 0, counterB = 0, counterC = 0, counterD = 0;
@@ -91,19 +120,18 @@ void main() {
     ICore core = Core(
       projectId: TEST_PROJECT_ID,
       memoryStore: true,
+      httpClient: getHttpWrapper(),
     );
     late RelayClient relayClient;
     MockMessageTracker messageTracker = MockMessageTracker();
-    MockTopicMap topicMap = MockTopicMap();
 
     setUp(() async {
-      when(topicMap.has(TEST_TOPIC)).thenReturn(true);
-
       await core.start();
       relayClient = RelayClient(
-        core,
+        core: core,
         messageTracker: messageTracker,
-        topicMap: topicMap,
+        topicMap: getTopicMap(core: core),
+        httpClient: getHttpWrapper(),
       );
       await relayClient.init();
     });
@@ -113,6 +141,8 @@ void main() {
     // });
 
     test('Handle publish broadcasts and stores the message event', () async {
+      await relayClient.topicMap.set(TEST_TOPIC, 'test');
+
       int counter = 0;
       relayClient.onRelayClientMessage.subscribe((MessageEvent? args) {
         counter++;
@@ -149,16 +179,28 @@ void main() {
           relayUrl: TEST_RELAY_URL,
           projectId: TEST_PROJECT_ID,
           memoryStore: true,
+          httpClient: getHttpWrapper(),
         );
         coreB = Core(
           relayUrl: TEST_RELAY_URL,
           projectId: TEST_PROJECT_ID,
           memoryStore: true,
+          httpClient: getHttpWrapper(),
         );
         await coreA.start();
         await coreB.start();
-        coreA.relayClient = RelayClient(coreA);
-        coreB.relayClient = RelayClient(coreB);
+        coreA.relayClient = RelayClient(
+          core: coreA,
+          messageTracker: getMessageTracker(core: coreA),
+          topicMap: getTopicMap(core: coreA),
+          httpClient: getHttpWrapper(),
+        );
+        coreB.relayClient = RelayClient(
+          core: coreB,
+          messageTracker: getMessageTracker(core: coreB),
+          topicMap: getTopicMap(core: coreB),
+          httpClient: getHttpWrapper(),
+        );
         await coreA.relayClient.init();
         await coreB.relayClient.init();
       });
@@ -208,8 +250,12 @@ void main() {
           tag: 0,
         );
 
-        await completerA.future;
-        await completerB.future;
+        if (!completerA.isCompleted) {
+          await completerA.future;
+        }
+        if (!completerB.isCompleted) {
+          await completerB.future;
+        }
 
         expect(counterA, 1);
         expect(counterB, 1);

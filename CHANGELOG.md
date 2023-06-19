@@ -1,3 +1,79 @@
+## 2.0.10
+
+- Added logger level where missing
+- Updated the `NamespaceUtils` and `SignApiValidatorUtils` to follow [CAIP-217](https://chainagnostic.org/CAIPs/caip-217)
+
+## 2.0.9
+
+- Fixed issue with hanging websocket connection (Missing session)
+- Added logs to certain packages to help with debugging
+- Updated multiple tests to be more deterministic
+
+## 2.0.8
+
+- Added echo client
+- Multiple bug fixes
+
+## 2.0.7
+
+- Bumped multiple versions
+- Fixed issue with tests not being deterministic
+- dApp example updated based on version bumps
+
+## 2.0.6
+
+- Reverted auth to match eip spec
+
+## 2.0.5
+
+- Added analysis options and enforced them
+
+## 2.0.4
+
+- Fixed issues with relay update
+- Resolved RPC ID starting at 1 and incrementing
+- Resolved race condition with null check on websocket
+
+## 2.0.3
+
+- Fixed issue with auth formatMessage where it would leave 2 new lines if there was no statement
+
+## 2.0.2
+
+- Added a colon (:) to auth that makes it actually authenticate the message properly
+- Fixed issue with mismatched types used in jsonRPC.sendRequest
+
+## 2.0.1
+
+- Fixed an issue where the autonamespace's required namespaces would be overwritten by optional namespaces if they had the same chain
+
+## 2.0.0
+
+- Removed periodic ping from websocket, it was throwing an error on the server side. Periodic check to reconnect is still present.
+- Updated the parse URI to handle V1 URIs as well as V2 URIs
+
+## 1.2.3
+
+- Event and request events will only be emitted if they are registered
+- Added `WalletConnectErrorSilent` that can be thrown in a requestHandler to fail silently and return nothing to the requester
+- Multiple bug fixes
+
+## 1.2.2
+
+- Reverted preflight check for HTTP Errors.
+
+## 1.2.1
+
+- Added `onCreate`, `onUpdate`, `onDelete`, `onSync` events to the Pairings, Sessions, and StoredCacao objects for easier state updates
+- Relay now reconnects and resubscribes to active topics when connection WebSocket is lost
+- Added heartbeat to websocket to keep connection alive
+- Added preflight check for HTTP Errors before connecting to WebSocket
+
+## 1.2.0
+
+- AuthClient and SignClient changed to match the WalletConnect Documentation Specifications
+- Added `registerAccounts` and `registerEventEmitters` to the SignClient, if there are accounts or events registered, they will be used to automatically create a Namespaces object and validate the session proposal.
+
 ## 1.1.4
 
 - Throw a WalletConnectError in a sign request function handler to return a JsonRpcError to the dApp
